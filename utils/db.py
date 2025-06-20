@@ -17,6 +17,9 @@ def create_table():
 
 # Добовляет задачу
 def add_task(description):
+    if not description.strip():  # пустая строка
+        print("Нельзя добавить пустую задачу.")
+        return
     conn = sqlite3.connect("tasks.db")
     c = conn.cursor()
     c.execute("INSERT INTO tasks (description) VALUES (?)", (description,))
@@ -32,7 +35,7 @@ def list_tasks():
     c.execute("SELECT id, description, completed FROM tasks")
     tasks = c.fetchall()
     conn.close()
-    
+
     if tasks:
         for task in tasks:
             status = "✔" if task[2] else "✘"
@@ -62,9 +65,13 @@ def complete_task(task_id):
     conn = sqlite3.connect("tasks.db")
     c = conn.cursor()
     c.execute("UPDATE tasks SET completed = 1 WHERE id = ?", (task_id,))
+    if c.rowcount == 0:
+        print(f"Задача с ID {task_id} не найдена.")
+    else:
+        print(f"Задача {task_id} отмечена как выполненная.")
     conn.commit()
     conn.close()
-    print(f"Задача {task_id} отмечена как выполненная.")
+    
  
 
 # Удаление столбца

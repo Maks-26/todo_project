@@ -54,6 +54,25 @@ class TestTodoApp(unittest.TestCase):
         conn.close()
         self.assertIsNone(task, "Задача не была удалена")
 
+    def test_add_empty_task(self):
+        """Проверка добавления пустой задачи"""
+        add_task("")
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT * FROM tasks WHERE description = ''")
+        task = c.fetchone()
+        conn.close()
+        self.assertIsNone(task, "Пустая задача не должна быть добавлена")
+
+    def test_complete_nonexistent_task(self):
+        """Попытка завершить несуществующую задачу"""
+        complete_task(9999)  # ID, которого точно нет
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT * FROM tasks WHERE id = 9999")
+        task = c.fetchone()
+        conn.close()
+        self.assertIsNone(task, "Не должно быть задачи с ID 9999")
 
 if __name__ == '__main__':
     unittest.main()
