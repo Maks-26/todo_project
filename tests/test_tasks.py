@@ -1,8 +1,10 @@
-import unittest
 import sqlite3
-from utils import add_task, complete_task, delete_task, create_table
+import unittest
+
+from app import add_task, complete_task, create_table, delete_task
 
 DB_PATH = "tasks.db"
+
 
 class TestTodoApp(unittest.TestCase):
     def setUp(self):
@@ -27,7 +29,9 @@ class TestTodoApp(unittest.TestCase):
         add_task("Задача для выполнения")
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute("SELECT id FROM tasks WHERE description = ?", ("Задача для выполнения",))
+        c.execute(
+            "SELECT id FROM tasks WHERE description = ?", ("Задача для выполнения",)
+        )
         result = c.fetchone()
         self.assertIsNotNone(result, "Задача не найдена в БД после добавления")
         task_id = result[0]
@@ -43,7 +47,9 @@ class TestTodoApp(unittest.TestCase):
         add_task("Задача для удаления")
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute("SELECT id FROM tasks WHERE description = ?", ("Задача для удаления",))
+        c.execute(
+            "SELECT id FROM tasks WHERE description = ?", ("Задача для удаления",)
+        )
         result = c.fetchone()
         self.assertIsNotNone(result, "Задача не найдена в БД после добавления")
         task_id = result[0]
@@ -74,5 +80,8 @@ class TestTodoApp(unittest.TestCase):
         conn.close()
         self.assertIsNone(task, "Не должно быть задачи с ID 9999")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
+    import unittest
+
     unittest.main()

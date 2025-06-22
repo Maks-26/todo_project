@@ -1,18 +1,6 @@
 import sqlite3
 
-# Создаёт сам файл
-def create_table():
-    conn = sqlite3.connect("tasks.db")
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            description TEXT NOT NULL,
-            completed INTEGER DEFAULT 0
-        )
-    """)
-    conn.commit()
-    conn.close()
+from utils.logger import log_action
 
 
 # Добовляет задачу
@@ -26,6 +14,7 @@ def add_task(description):
     conn.commit()
     conn.close()
     print("Задача добавлена.")
+    log_action("Добавлена задача", description=description)
 
 
 # Показать все задачи
@@ -45,7 +34,7 @@ def list_tasks():
 
 
 # изменение текста задачи
-def update_task_description( task_id, new_description):
+def update_task_description(task_id, new_description):
     conn = sqlite3.connect("tasks.db")
     c = conn.cursor()
     c.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
@@ -55,12 +44,14 @@ def update_task_description( task_id, new_description):
         print(f"Задача с ID {task_id} не найдена.")
         return
 
-    c.execute("UPDATE tasks SET description = ? WHERE id = ?", (new_description, task_id))
+    c.execute(
+        "UPDATE tasks SET description = ? WHERE id = ?", (new_description, task_id)
+    )
     conn.commit()
     print(f"Задача ID {task_id} обновлена.")
 
 
-# отмечаем задачю как выполненную. 
+# отмечаем задачю как выполненную.
 def complete_task(task_id):
     conn = sqlite3.connect("tasks.db")
     c = conn.cursor()
@@ -69,10 +60,10 @@ def complete_task(task_id):
         print(f"Задача с ID {task_id} не найдена.")
     else:
         print(f"Задача {task_id} отмечена как выполненная.")
+        log_action("Отмечена как выполненная", task_id=task_id)
     conn.commit()
     conn.close()
-    
- 
+
 
 # Удаление столбца
 def delete_task(task_id):
@@ -82,13 +73,17 @@ def delete_task(task_id):
     conn.commit()
     conn.close()
     print(f"Задача {task_id} удалена.")
- 
+    log_action("Удалена задача", task_id=task_id)
+
 
 # Поиск по ключевому слову
 def search_tasks(keyword):
     conn = sqlite3.connect("tasks.db")
     c = conn.cursor()
-    c.execute("SELECT id, description, completed FROM tasks WHERE description LIKE ?", (f"%{keyword}%",))
+    c.execute(
+        "SELECT id, description, completed FROM tasks WHERE description LIKE ?",
+        (f"%{keyword}%",),
+    )
     tasks = c.fetchall()
     conn.close()
 
@@ -98,7 +93,3 @@ def search_tasks(keyword):
             print(f"[{task[0]}] {task[1]} {status}")
     else:
         print("Ничего не найдено.")
-
-
-
-

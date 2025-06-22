@@ -1,9 +1,5 @@
-from utils import ( create_table, 
-                    add_task, 
-                    list_tasks,
-                    complete_task,
-                    delete_task,
-                    update_task_description )
+from app import (add_task, complete_task, create_table, delete_task,
+                 list_tasks, update_task_description)
 
 
 def main():
@@ -24,17 +20,17 @@ def main():
         if choice == "1":
             task = input("Введите задачу: ")
             add_task(task)
- 
+
         # Показать список задач
         elif choice == "2":
             list_tasks()
- 
+
         # Изменить задачу
         elif choice == "3":
             task_id = int(input("Введите ID задачи, которую хотите изменить: "))
             new_description = input("Введите новое описание задачи: ")
             update_task_description(task_id, new_description)
- 
+
         # Отметить задачу выполненной
         elif choice == "4":
             try:
@@ -46,8 +42,9 @@ def main():
         # Удалить задачу:
         elif choice == "5":
             try:
-                task_id = input("Введите ID задачи для удаления:\n"
-                                "Введите Enter для отмены:")
+                task_id = input(
+                    "Введите ID задачи для удаления:\n" "Введите Enter для отмены:"
+                )
                 delete_task(int(task_id)) if task_id else print("Отмена")
             except ValueError:
                 print("Введите корректный ID.")
@@ -68,5 +65,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

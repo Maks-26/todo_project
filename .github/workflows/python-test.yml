@@ -27,11 +27,11 @@ jobs: # Что делаем? — test
     - name: Установить зависимости
       run: |
         python -m pip install --upgrade pip
-        pip install rich
+        pip install -r requirements.txt
 # Установка зависимостей — например, библиотека rich или другие, которые нужны 
 # для работы твоего кода. Можно указать pip install -r requirements.txt, если 
 # есть файл зависимостей.
     - name: Запустить тесты
       run: |
-        python -m unittest discover
+        python -m unittest discover -s tests
 #  Запускаются юнит-тесты с помощью unittest.
