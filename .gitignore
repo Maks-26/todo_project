@@ -1,0 +1,21 @@
+# Служебные файлы Python
+__pycache__/
+*.pyc
+
+# Базы данных
+*.db
+
+# Логи
+*.log
+log.txt
+
+# Виртуальное окружение (если будет)
+venv/
+
+# IDE / редакторы
+.vscode/
+.idea/
+
+# Файлы OS
+.DS_Store
+Thumbs.db
