@@ -80,9 +80,14 @@ def delete_task(task_id):
 def search_tasks(keyword):
     conn = sqlite3.connect("tasks.db")
     c = conn.cursor()
+    query = """
+        SELECT id, description, completed
+        FROM tasks
+        WHERE description LIKE ?
+            """
     c.execute(
-        "SELECT id, description, completed FROM tasks WHERE description LIKE ?",
-        (f"%{keyword}%",),
+        query.strip(),
+        f"%{keyword}%",
     )
     tasks = c.fetchall()
     conn.close()

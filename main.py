@@ -1,5 +1,12 @@
-from app import (add_task, complete_task, create_table, delete_task,
-                 list_tasks, update_task_description)
+from app import (
+    add_task,
+    complete_task,
+    create_table,
+    delete_task,
+    list_tasks,
+    search_tasks,
+    update_task_description,
+)
 
 
 def main():

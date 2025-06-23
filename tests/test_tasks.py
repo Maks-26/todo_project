@@ -20,7 +20,12 @@ class TestTodoApp(unittest.TestCase):
         add_task("Тестовая задача")
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute("SELECT * FROM tasks WHERE description = ?", ("Тестовая задача",))
+        query = """
+            SELECT *
+            FROM tasks
+            WHERE description = ?
+        """
+        c.execute(query.strip(), "Тестовая задача")
         task = c.fetchone()
         conn.close()
         self.assertIsNotNone(task, "Задача не была добавлена в БД")
@@ -29,9 +34,13 @@ class TestTodoApp(unittest.TestCase):
         add_task("Задача для выполнения")
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute(
-            "SELECT id FROM tasks WHERE description = ?", ("Задача для выполнения",)
-        )
+        query = """
+            SELECT id
+            FROM tasks
+            WHERE description = ?
+        """
+        c.execute(query.strip(), "Задача для выполнения")
+
         result = c.fetchone()
         self.assertIsNotNone(result, "Задача не найдена в БД после добавления")
         task_id = result[0]
@@ -47,9 +56,12 @@ class TestTodoApp(unittest.TestCase):
         add_task("Задача для удаления")
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute(
-            "SELECT id FROM tasks WHERE description = ?", ("Задача для удаления",)
-        )
+        query = """
+            SELECT id
+            FROM tasks
+            WHERE description = ?
+        """
+        c.execute(query.strip(), "Задача для удаления")
         result = c.fetchone()
         self.assertIsNotNone(result, "Задача не найдена в БД после добавления")
         task_id = result[0]
