@@ -4,7 +4,8 @@ from app import add_task, complete_task, delete_task, create_table
 
 DB_PATH = "tasks.db"
 
-class TestTodoApp(unittest.TestCase):
+
+class TestTodoApp(unittest.TestCase):    
     def setUp(self):
         """Перед каждым тестом очищаем таблицу и создаём заново."""
         create_table()
@@ -60,6 +61,7 @@ class TestTodoApp(unittest.TestCase):
         delete_task(task_id)
         task = self.get_task_by_id(task_id)
         self.assertIsNone(task, "Задача не была удалена")
+
 
 if __name__ == "__main__":
     import unittest
