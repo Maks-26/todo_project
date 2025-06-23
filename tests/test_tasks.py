@@ -25,7 +25,7 @@ class TestTodoApp(unittest.TestCase):
             FROM tasks
             WHERE description = ?
         """
-        c.execute(query.strip(), "Тестовая задача")
+        c.execute(query.strip(), ("Тестовая задача",))
         task = c.fetchone()
         conn.close()
         self.assertIsNotNone(task, "Задача не была добавлена в БД")
@@ -39,7 +39,7 @@ class TestTodoApp(unittest.TestCase):
             FROM tasks
             WHERE description = ?
         """
-        c.execute(query.strip(), "Задача для выполнения")
+        c.execute(query.strip(), ("Задача для выполнения",))
 
         result = c.fetchone()
         self.assertIsNotNone(result, "Задача не найдена в БД после добавления")
@@ -61,7 +61,7 @@ class TestTodoApp(unittest.TestCase):
             FROM tasks
             WHERE description = ?
         """
-        c.execute(query.strip(), "Задача для удаления")
+        c.execute(query.strip(), ("Задача для удаления",))
         result = c.fetchone()
         self.assertIsNotNone(result, "Задача не найдена в БД после добавления")
         task_id = result[0]
