@@ -1,11 +1,19 @@
 import sqlite3  # noqa: F401
 import unittest
 
-from app import (add_task, complete_task, create_table, delete_task, get_connection,
-update_task_description, search_tasks)
+from app import (
+    add_task,
+    complete_task,
+    create_table,
+    delete_task,
+    get_connection,
+    search_tasks,
+    update_task_description,
+)
+
 
 class TestTodoApp(unittest.TestCase):
-    
+
     def setUp(self):
         """Перед каждым тестом очищаем таблицу и создаём заново."""
         create_table()
@@ -13,7 +21,7 @@ class TestTodoApp(unittest.TestCase):
             c = conn.cursor()
             c.execute("DELETE FROM tasks")
             conn.commit()
-    
+
     def add_and_get_task_id(self, description):
         """Добавить задачу и вернуть её ID"""
         add_task(description)
@@ -88,7 +96,7 @@ class TestTodoApp(unittest.TestCase):
 
         self.add_and_get_task_id("Купить молоко")
         self.add_and_get_task_id("Позвонить маме")
-        
+
         result = search_tasks("молоко")
         self.assertIn("молоко", result.lower())
 

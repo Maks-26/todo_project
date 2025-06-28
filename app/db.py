@@ -2,6 +2,7 @@ import sqlite3
 
 from utils import log_action
 
+
 # Потклюкение к БД
 def get_connection():
     return sqlite3.connect("tasks.db")

@@ -103,10 +103,7 @@ def search_tasks(keyword):
             FROM tasks
             WHERE description LIKE ?
         """
-        c.execute(
-            query.strip(),
-            (f"%{keyword}%",)
-        )
+        c.execute(query.strip(), (f"%{keyword}%",))
         tasks = c.fetchall()
 
     if tasks:
