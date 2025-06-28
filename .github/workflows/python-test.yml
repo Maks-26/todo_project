@@ -26,8 +26,8 @@ jobs: # Что делаем? — test
 
     - name: Установить зависимости
       run: |
-        python -m pip install --upgrade pip
         pip install -r requirements.txt
+        python -m pip install --upgrade pip
 # Установка зависимостей — например, библиотека rich или другие, которые нужны 
 # для работы твоего кода. Можно указать pip install -r requirements.txt, если 
 # есть файл зависимостей.

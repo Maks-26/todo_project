@@ -3,6 +3,7 @@ from app import (
     complete_task,
     create_table,
     delete_task,
+    get_task_id,
     list_tasks,
     search_tasks,
     update_task_description,
@@ -26,35 +27,38 @@ def main():
         # Добавить задачу
         if choice == "1":
             task = input("Введите задачу: ")
-            add_task(task)
+            print(add_task(task))
 
         # Показать список задач
         elif choice == "2":
-            list_tasks()
+            My_list_tasks = list_tasks() if list_tasks() else ["Список пуст"]
+            for task in My_list_tasks:
+                print(task)
 
         # Изменить задачу
         elif choice == "3":
-            task_id = int(input("Введите ID задачи, которую хотите изменить: "))
+            task_id = get_task_id("Введите ID, которую хотите изменить: ")
+            if task_id == "Некорректный ID" or task_id == "Отмена":
+                print(task_id)
+                continue
             new_description = input("Введите новое описание задачи: ")
-            update_task_description(task_id, new_description)
+            print(update_task_description(task_id, new_description))
 
         # Отметить задачу выполненной
         elif choice == "4":
-            try:
-                task_id = int(input("Введите ID задачи для отметки как выполненной: "))
-                complete_task(task_id)
-            except ValueError:
-                print("Введите корректный ID.")
+            task_id = get_task_id()
+            if task_id == "Некорректный ID" or task_id == "Отмена":
+                print(task_id)
+                continue
+            print(complete_task(task_id))
 
         # Удалить задачу:
         elif choice == "5":
-            try:
-                task_id = input(
-                    "Введите ID задачи для удаления:\n" "Введите Enter для отмены:"
-                )
-                delete_task(int(task_id)) if task_id else print("Отмена")
-            except ValueError:
-                print("Введите корректный ID.")
+            task_id = get_task_id("Введите ID задачи для удаления: ")
+            if task_id == "Некорректный ID" or task_id == "Отмена":
+                print(task_id)
+                continue
+            print(delete_task(task_id))
 
         # Выход
         elif choice == "6":
@@ -64,7 +68,7 @@ def main():
         # # Поиск по ключевому слову
         elif choice == "7":
             keyword = input("Введите слово для поиска: ")
-            search_tasks(keyword)
+            print(search_tasks(keyword))
 
         else:
             print("Неверный выбор, попробуйте снова.")
@@ -72,3 +76,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
