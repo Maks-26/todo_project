@@ -50,15 +50,3 @@ def test_add_task(test_session):
     """Финиш"""
     finish = list_tasks(test_session)
     assert [] == finish
-
-
-'''
-def test_update_task_description(test_session):
-    """Проверяю изменения зодачи"""
-    description = ("Тестовая задача","Новая задача")
-    message = add_task(test_session,description[0])
-    tasks = 
-    assert "Тестовая задача" in message
-
-    assert
-'''
