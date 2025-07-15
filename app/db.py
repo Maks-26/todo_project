@@ -1,28 +1,18 @@
-import sqlite3
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-from utils import log_action
+"""Настройка SQLAlchemy"""
+DATABASE_URL = "sqlite:///tasks.db"
+
+engine = create_engine(DATABASE_URL, echo=False)  # Подключение к БД
+SessionLocal = sessionmaker(bind=engine)
+
+Base = declarative_base()
+
+"""Создание таблиц"""
 
 
-# Потклюкение к БД
-def get_connection():
-    return sqlite3.connect("tasks.db")
+def init_db():
+    from app import Task  # noqa: F401 # Импортировать все модели
 
-
-# Создаёт сам файл
-def create_table():
-    try:
-        with get_connection() as conn:
-            c = conn.cursor()
-            c.execute(
-                """
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    description TEXT NOT NULL,
-                    completed INTEGER DEFAULT 0
-                )
-            """
-            )
-            conn.commit()
-        log_action("Таблица успешно создана.")
-    except Exception as e:
-        log_action(f"Произошла ошибка при создании таблицы: {e}")
+    Base.metadata.create_all(bind=engine)

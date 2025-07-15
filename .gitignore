@@ -19,3 +19,7 @@ venv/
 # Файлы OS
 .DS_Store
 Thumbs.db
+
+.git/
+.coverage
+run__todo.bat

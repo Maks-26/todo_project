@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "todo-project"
+version = "0.1.0"
+description = "Простой CLI todo менеджер"
+authors = ["Maks <maks267361@gmail.com>"]
+readme = "README.md"
+packages = [{ include = "app" }]
+
+[tool.poetry.dependencies]
+python = ">=3.13"
+sqlalchemy = "*"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.12.3"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ["py313"]
+
+[tool.isort]
+profile = "black"

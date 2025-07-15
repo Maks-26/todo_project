@@ -1,107 +1,64 @@
-import sqlite3  # noqa: F401
-import unittest
-
+# tests/test_tasks.py
 from app import (
     add_task,
     complete_task,
-    create_table,
     delete_task,
-    get_connection,
+    list_tasks,
     search_tasks,
     update_task_description,
 )
 
 
-class TestTodoApp(unittest.TestCase):
+def test_add_task(test_session):
+    """Проверяю добовление задачи"""
+    description = ["Тестовая задача", "   ", "Новая задача"]
+    message = add_task(test_session, description[0])
+    empty_message = add_task(test_session, description[1])
 
-    def setUp(self):
-        """Перед каждым тестом очищаем таблицу и создаём заново."""
-        create_table()
-        with get_connection() as conn:
-            c = conn.cursor()
-            c.execute("DELETE FROM tasks")
-            conn.commit()
+    assert "Задача добавлена." in message
+    assert "Нельзя добавить пустую задачу." in empty_message
 
-    def add_and_get_task_id(self, description):
-        """Добавить задачу и вернуть её ID"""
-        add_task(description)
-        with get_connection() as conn:
-            c = conn.cursor()
-            query = """
-                SELECT id
-                FROM tasks
-                WHERE description = ?
-            """
-            c.execute(query.strip(), (description,))
-            result = c.fetchone()
-            return result[0] if result else None
+    """Проверяю сохранение задачи"""
+    tasks = list_tasks(test_session)
+    assert len(tasks) == 1
+    assert tasks[0].id == 1
+    assert tasks[0].description == description[0]
+    assert tasks[0].completed is False
 
-    def get_task_by_id(self, task_id):
-        """Получить задачу по ID"""
-        with get_connection() as conn:
-            c = conn.cursor()
-            query = """
-                SELECT *
-                FROM tasks
-                WHERE id = ?
-            """
-            c.execute(query.strip(), (task_id,))
-            task = c.fetchone()
-            return task
+    """Меняю статус задачи"""
+    complete = complete_task(test_session, 1)
+    tasks = list_tasks(test_session)
+    assert "Задача отмечена выполненной" == complete
+    assert tasks[0].completed is True
 
-    def get_completed_status(self, task_id):
-        """Изменить статус задачи"""
-        with get_connection() as conn:
-            c = conn.cursor()
-            query = """
-                SELECT completed
-                FROM tasks
-                WHERE id = ?
-            """
-            c.execute(query.strip(), (task_id,))
-            result = c.fetchone()
-            return result[0] if result else None
+    """Проверяю изменения зодачи"""
+    update_task = update_task_description(test_session, 1, description[2])
+    empty_update_task = update_task_description(test_session, 1, description[1])
+    tasks = list_tasks(test_session)
+    assert "Задача обновлена." == update_task
+    assert "Нельзя добавить пустую задачу." == empty_update_task
+    assert tasks[0].completed is False
 
-    def test_add_task(self):
-        task_id = self.add_and_get_task_id("Тестовая задача")
-        self.assertIsNotNone(task_id, "Задача не была добавлена")
+    """Поиск по ключевому слову"""
+    tasks = search_tasks(test_session, "Новая")
+    assert "Новая задача" == tasks[0].description
 
-    def test_complete_task(self):
-        task_id = self.add_and_get_task_id("Задача для выполнения")
-        self.assertIsNotNone(task_id, "Задача не найдена после добавления")
+    """Удоление задачи"""
+    tasks = delete_task(test_session, 1)
+    assert "Задача удолена" == tasks
 
-        complete_task(task_id)
-        status = self.get_completed_status(task_id)
-        self.assertEqual(status, 1, "Задача не была помечена как выполненная")
-
-    def test_delete_task(self):
-        task_id = self.add_and_get_task_id("Задача для удаления")
-        self.assertIsNotNone(task_id, "Задача не найдена после добавления")
-
-        delete_task(task_id)
-        task = self.get_task_by_id(task_id)
-        self.assertIsNone(task, "Задача не была удалена")
-
-    def test_update_task_description(self):
-        task_id = self.add_and_get_task_id("Старая задача")
-
-        new_text = "Обновлённая задача"
-        update_task_description(task_id, new_text)
-
-        updated_task = self.get_task_by_id(task_id)
-        self.assertEqual(updated_task[1], new_text)
-        self.assertEqual(updated_task[2], 0)  # completed должен быть сброшен
-
-    def test_search_tasks(self):
-
-        self.add_and_get_task_id("Купить молоко")
-        self.add_and_get_task_id("Позвонить маме")
-
-        result = search_tasks("молоко")
-        self.assertIn("молоко", result.lower())
+    """Финиш"""
+    finish = list_tasks(test_session)
+    assert [] == finish
 
 
-if __name__ == "__main__":
-    import unittest
+'''
+def test_update_task_description(test_session):
+    """Проверяю изменения зодачи"""
+    description = ("Тестовая задача","Новая задача")
+    message = add_task(test_session,description[0])
+    tasks = 
+    assert "Тестовая задача" in message
 
-    unittest.main()
+    assert
+'''

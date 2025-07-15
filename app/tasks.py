@@ -1,114 +1,84 @@
-import sqlite3  # noqa: F401
+from sqlalchemy.orm import Session
 
-from app import get_connection
+from app import Task
 from utils import log_action
 
 
-# Проверка корректности ввода
-def get_task_id(prompt="Введите ID задачи:"):
+# Добавить задачу
+def add_task(session: Session, description):
+    description = description.strip()
+
+    if not description:
+        return "Нельзя добавить пустую задачу."
+
+    task = Task(description=description)
+    session.add(task)
+    session.commit()
+
+    if task:
+        state = "✔" if task.completed else "✘"
+        log_action("Задача добавлена", task.id, task.description, state)
+        return "Задача добавлена."
+
+
+# Показать все задачи
+def list_tasks(session: Session):
+    tasks = session.query(Task).all()
+    return tasks if tasks else []
+
+
+# Изменить задачу
+def update_task_description(session: Session, task_id: int, new_description: str):
+    new_description = new_description.strip()
+
+    if not new_description:
+        return "Нельзя добавить пустую задачу."
+
+    task = session.query(Task).filter(Task.id == task_id).first()
+    if task:
+        task.description, task.completed = new_description, False
+        session.commit()
+        log_action("Задача обновлена", task.id, task.description, "✘")
+        return "Задача обновлена."
+    return "Задача с таким ID не найдена."
+
+
+# Отметить задачу как выполненную
+def complete_task(session: Session, task_id: int):
+    task = session.query(Task).filter(Task.id == task_id).first()
+    if task:
+        task.completed = True
+        session.commit()
+        log_action("Задача отмечена выполненной", task.id, task.description, "✔")
+        return "Задача отмечена выполненной"
+    return f"Задача с ID {task_id} не найдена."
+
+
+# Удолить задачю
+def delete_task(session: Session, task_id: int):
+    task = session.query(Task).filter(Task.id == task_id).first()
+    if task:
+        session.delete(task)
+        session.commit()
+        state = "✔" if task.completed else "✘"
+        log_action("Задача удалена", task.id, task.description, state)
+        return "Задача удолена"
+    return f"Задача с ID {task_id} не найдена."
+
+
+# Поиск по ключевому слову
+def search_tasks(session: Session, keyword: str):
+    keyword = f"%{keyword}%"
+    tasks = session.query(Task).filter(Task.description.ilike(keyword)).all()
+    return tasks
+
+
+# Проверить ввод get_task_id
+def get_task_id(prompt="Введите ID задачи: \nВвод: "):
     try:
         task_id = input(f"Введите Enter - 'Отмена'\n{prompt}")
         if not task_id:
             return "Отмена"
         return int(task_id)
     except ValueError:
-        return "Некорректный ID"
-
-
-# 1 Добавляет задачу
-def add_task(description):
-    if not description.strip():  # пустая строка
-        return "Нельзя добавить пустую задачу."
-    with get_connection() as conn:
-        c = conn.cursor()
-        c.execute("INSERT INTO tasks (description) VALUES (?)", (description,))
-        conn.commit()
-        log_action("Добавлена задача", description=description)
-        return "Задача добавлена"
-
-
-# 2 Показать все задачи
-def list_tasks():
-    with get_connection() as conn:
-        c = conn.cursor()
-        c.execute("SELECT id, description, completed FROM tasks")
-        tasks = c.fetchall()
-
-    if tasks:
-        My_list_tasks = []
-        for task in tasks:
-            status = "✔" if task[2] else "✘"
-            My_list_tasks.append(f"[{task[0]}] {task[1]} {status}")
-        return My_list_tasks
-    else:
-        return tasks
-
-
-# 3 изменение текста задачи
-def update_task_description(task_id, new_description):
-    with get_connection() as conn:
-        c = conn.cursor()
-        c.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
-        task = c.fetchone()
-
-        if not task:
-            return f"Задача с ID {task_id} не найдена."
-
-        query = """
-            UPDATE tasks
-            SET description = ?, completed = 0
-            WHERE id = ?
-        """
-        c.execute(
-            query.strip(),
-            (
-                new_description,
-                task_id,
-            ),
-        )
-        conn.commit()
-        log_action("Задача обновлена", task_id=task_id)
-    return f"Задача ID {task_id} обновлена."
-
-
-# 4 отмечаем задачу как выполненную.
-def complete_task(task_id):
-    with get_connection() as conn:
-        c = conn.cursor()
-        c.execute("UPDATE tasks SET completed = 1 WHERE id = ?", (task_id,))
-        if c.rowcount == 0:
-            return f"Задача с ID {task_id} не найдена."
-        else:
-            log_action("Отмечена как выполненная", task_id=task_id)
-            conn.commit()
-        return f"Задача {task_id} отмечена как выполненная."
-
-
-# 5 Удаление столбца
-def delete_task(task_id):
-    with get_connection() as conn:
-        c = conn.cursor()
-        c.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
-        conn.commit()
-        log_action("Удалена задача", task_id=task_id)
-    return f"Задача {task_id} удалена."
-
-
-# 6 Поиск по ключевому слову
-def search_tasks(keyword):
-    with get_connection() as conn:
-        c = conn.cursor()
-        query = """
-            SELECT id, description, completed
-            FROM tasks
-            WHERE description LIKE ?
-        """
-        c.execute(query.strip(), (f"%{keyword}%",))
-        tasks = c.fetchall()
-
-    if tasks:
-        for task in tasks:
-            status = "✔" if task[2] else "✘"
-            return f"[{task[0]}] {task[1]} {status}"
-    else:
-        return "Ничего не найдено."
+        return "Ошибка: ID должен быть числом."

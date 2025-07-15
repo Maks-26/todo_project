@@ -1,9 +1,11 @@
+import argparse
+
 from app import (
+    SessionLocal,
     add_task,
     complete_task,
-    create_table,
     delete_task,
-    get_task_id,
+    init_db,
     list_tasks,
     search_tasks,
     update_task_description,
@@ -11,67 +13,65 @@ from app import (
 
 
 def main():
-    create_table()
-    while True:
-        print("\nМеню:")
-        print("1. Добавить задачу")
-        print("2. Показать список задач")
-        print("3. Изменить задачу")
-        print("4. Отметить задачу выполненной")
-        print("5. Удалить задачу")
-        print("6. Выход")
-        print("7. Поиск задач")
+    init_db()
+    parser = argparse.ArgumentParser(description="TODO CLI")
 
-        choice = input("Выберите действие: ")
+    subparsers = parser.add_subparsers(dest="command")
 
-        # Добавить задачу
-        if choice == "1":
-            task = input("Введите задачу: ")
-            print(add_task(task))
+    # Команда: add
+    add_parser = subparsers.add_parser("add", help="Добавить задачу")
+    add_parser.add_argument("description", help="Описание задачи")
 
-        # Показать список задач
-        elif choice == "2":
-            My_list_tasks = list_tasks() if list_tasks() else ["Список пуст"]
-            for task in My_list_tasks:
-                print(task)
+    # Команда: list
+    subparsers.add_parser("list", help="Показать все задачи")
 
-        # Изменить задачу
-        elif choice == "3":
-            task_id = get_task_id("Введите ID, которую хотите изменить: ")
-            if task_id == "Некорректный ID" or task_id == "Отмена":
-                print(task_id)
-                continue
-            new_description = input("Введите новое описание задачи: ")
-            print(update_task_description(task_id, new_description))
+    # Команда: update
+    update_parser = subparsers.add_parser("update", help="Обновить задачу")
+    update_parser.add_argument("id", type=int)
+    update_parser.add_argument("description", help="Новое описание")
 
-        # Отметить задачу выполненной
-        elif choice == "4":
-            task_id = get_task_id()
-            if task_id == "Некорректный ID" or task_id == "Отмена":
-                print(task_id)
-                continue
-            print(complete_task(task_id))
+    # Команда: complete
+    complete_parser = subparsers.add_parser("complete", help="Отметить как выполненную")
+    complete_parser.add_argument("id", type=int)
 
-        # Удалить задачу:
-        elif choice == "5":
-            task_id = get_task_id("Введите ID задачи для удаления: ")
-            if task_id == "Некорректный ID" or task_id == "Отмена":
-                print(task_id)
-                continue
-            print(delete_task(task_id))
+    # Команда: delete
+    delete_parser = subparsers.add_parser("delete", help="Удалить задачу")
+    delete_parser.add_argument("id", type=int)
 
-        # Выход
-        elif choice == "6":
-            print("До свидания!")
-            break
+    # Команда: search
+    search_parser = subparsers.add_parser("search", help="Поиск по описанию")
+    search_parser.add_argument("keyword", help="Ключевое слово")
 
-        # # Поиск по ключевому слову
-        elif choice == "7":
-            keyword = input("Введите слово для поиска: ")
-            print(search_tasks(keyword))
+    args = parser.parse_args()
+    session = SessionLocal()
 
-        else:
-            print("Неверный выбор, попробуйте снова.")
+    match args.command:
+        case "add":
+            print(add_task(session, args.description))
+        case "list":
+            result = list_tasks(session)
+            if result:
+                for task in result:
+                    state = "✔" if task.completed else "✘"
+                    print(f"{task.id}. {task.description} [{state}]")
+            else:
+                print("Список задач пуст.")
+        case "update":
+            print(update_task_description(session, args.id, args.description))
+        case "complete":
+            print(complete_task(session, args.id))
+        case "delete":
+            print(delete_task(session, args.id))
+        case "search":
+            result = search_tasks(session, args.keyword)
+            if result:
+                for task in result:
+                    state = "✔" if task.completed else "✘"
+                    print(f"{task.id}. {task.description} [{state}]")
+            else:
+                print("Ничего не найдено.")
+        case _:
+            parser.print_help()
 
 
 if __name__ == "__main__":
