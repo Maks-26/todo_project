@@ -2,11 +2,10 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app import init_db  # если надо инициализировать таблицы вручную
 from app.models import Base  # таблицы
 
 # Создаём SQLite-базу в памяти (не сохраняется на диск)
-init_db()
+
 TEST_DATABASE_URL = "sqlite:///:memory:"
 
 

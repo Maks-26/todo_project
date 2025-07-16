@@ -34,3 +34,7 @@ jobs:
 
       - name: Run Isort
         run: poetry run isort . --check
+
+      - name: Run coverage report
+        run: poetry run pytest --cov=app --cov-report=term-missing
+

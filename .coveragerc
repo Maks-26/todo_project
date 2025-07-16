@@ -1,0 +1,8 @@
+# Что будет игнорировать coverage
+[run]
+omit =
+    */__init__.py
+    app/db.py
+
+[report]
+show_missing = true

@@ -31,7 +31,7 @@ def test_add_task(test_session):
     assert "Задача отмечена выполненной" == complete
     assert tasks[0].completed is True
 
-    """Проверяю изменения зодачи"""
+    """Проверяю изменения задачи"""
     update_task = update_task_description(test_session, 1, description[2])
     empty_update_task = update_task_description(test_session, 1, description[1])
     tasks = list_tasks(test_session)
@@ -43,9 +43,9 @@ def test_add_task(test_session):
     tasks = search_tasks(test_session, "Новая")
     assert "Новая задача" == tasks[0].description
 
-    """Удоление задачи"""
+    """Удаление задачи"""
     tasks = delete_task(test_session, 1)
-    assert "Задача удолена" == tasks
+    assert "Задача удалена" == tasks
 
     """Финиш"""
     finish = list_tasks(test_session)

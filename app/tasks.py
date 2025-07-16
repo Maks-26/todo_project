@@ -62,7 +62,7 @@ def delete_task(session: Session, task_id: int):
         session.commit()
         state = "✔" if task.completed else "✘"
         log_action("Задача удалена", task.id, task.description, state)
-        return "Задача удолена"
+        return "Задача удалена"
     return f"Задача с ID {task_id} не найдена."
 
 
