@@ -3,7 +3,7 @@ name: Lint and Test
 on: [push, pull_request]
 
 jobs:
-  lint:
+  lint_and_test:
     runs-on: ubuntu-latest
 
     steps:
@@ -35,6 +35,6 @@ jobs:
       - name: Run Isort
         run: poetry run isort . --check
 
-      - name: Run coverage report
+      - name: Run Pytest with Coverage
         run: poetry run pytest --cov=app --cov-report=term-missing
 
