@@ -1,11 +1,10 @@
 import argparse
 
-from app import (
-    SessionLocal,
+from app import SessionLocal  # init_db
+from app.tasks import (
     add_task,
     complete_task,
     delete_task,
-    init_db,
     list_tasks,
     search_tasks,
     update_task_description,
@@ -13,7 +12,7 @@ from app import (
 
 
 def main():
-    init_db()
+    # init_db()
     parser = argparse.ArgumentParser(description="TODO CLI")
 
     subparsers = parser.add_subparsers(dest="command")
@@ -43,35 +42,59 @@ def main():
     search_parser.add_argument("keyword", help="Ключевое слово")
 
     args = parser.parse_args()
-    session = SessionLocal()
+    with SessionLocal() as session:
 
-    match args.command:
-        case "add":
-            print(add_task(session, args.description))
-        case "list":
-            result = list_tasks(session)
-            if result:
-                for task in result:
-                    state = "✔" if task.completed else "✘"
-                    print(f"{task.id}. {task.description} [{state}]")
-            else:
-                print("Список задач пуст.")
-        case "update":
-            print(update_task_description(session, args.id, args.description))
-        case "complete":
-            print(complete_task(session, args.id))
-        case "delete":
-            print(delete_task(session, args.id))
-        case "search":
-            result = search_tasks(session, args.keyword)
-            if result:
-                for task in result:
-                    state = "✔" if task.completed else "✘"
-                    print(f"{task.id}. {task.description} [{state}]")
-            else:
-                print("Ничего не найдено.")
-        case _:
-            parser.print_help()
+        match args.command:
+            # Добавить задачу
+            case "add":
+                answer = add_task(session, args.description)
+                if answer:
+                    print("Задача добавлена.")
+                else:
+                    print("Нельзя добавить пустую задачу.")
+            # Показать список задач
+            case "list":
+                result = list_tasks(session)
+                if result:
+                    for task in result:
+                        state = "✔" if task.completed else "✘"
+                        print(f"{task.id}. {task.description} [{state}]")
+                else:
+                    print("Список задач пуст.")
+            # Изменить задачу
+            case "update":
+                result = update_task_description(session, args.id, args.description)
+                if isinstance(result, str):
+                    print(result)
+                elif result is None:
+                    print("Нельзя добавить пустую задачу.")
+                else:
+                    print("Задача обновлена.")
+            # Отметить выполнненой
+            case "complete":
+                result = complete_task(session, args.id)
+                if isinstance(result, str):
+                    print(result)
+                else:
+                    print("Задача отмечена выполненной")
+            # Удалить
+            case "delete":
+                result = delete_task(session, args.id)
+                if result:
+                    print(result)
+                else:
+                    print("Задача удалена")
+            # Поиск по ключу
+            case "search":
+                result = search_tasks(session, args.keyword)
+                if result:
+                    for task in result:
+                        state = "✔" if task.completed else "✘"
+                        print(f"{task.id}. {task.description} [{state}]")
+                else:
+                    print("Ничего не найдено.")
+            case _:
+                parser.print_help()
 
 
 if __name__ == "__main__":

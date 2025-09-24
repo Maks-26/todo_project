@@ -6,6 +6,20 @@ jobs:
   lint_and_test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgresql+psycopg2://test_user:test_pass@localhost:5432/test_db
+      SECRET_KEY: testsecret
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -38,3 +52,8 @@ jobs:
       - name: Run Pytest with Coverage
         run: poetry run pytest --cov=app --cov-report=term-missing
 
+      - name: Сохранить отчет покрытия как артефакт
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov

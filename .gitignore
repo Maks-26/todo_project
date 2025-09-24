@@ -23,6 +23,5 @@ Thumbs.db
 .git/
 .coverage
 run__todo.bat
-
 htmlcov/
 .coverage

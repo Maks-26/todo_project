@@ -1,28 +1,7 @@
-from .db import Base, SessionLocal, init_db
-from .models import Task
-from .tasks import (
-    add_task,
-    complete_task,
-    delete_task,
-    get_task_id,
-    list_tasks,
-    search_tasks,
-    update_task_description,
-)
+from .db import Base, SessionLocal
+from .models import Task, User
 
-__all__ = [
-    "Base",
-    "SessionLocal",
-    "init_db",
-    "Task",
-    "add_task",
-    "complete_task",
-    "delete_task",
-    "get_task_id",
-    "list_tasks",
-    "search_tasks",
-    "update_task_description",
-]
+__all__ = ["Base", "SessionLocal", "Task", "User"]
 
 
 menu = (
