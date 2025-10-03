@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, require_user
@@ -44,8 +44,8 @@ def create_task(
 # Изменить задачу и статус
 @router.patch("/tasks/{task_id}", response_model=TaskOut)
 def update_task_and_status(
-    task_data: TaskUpdate,
     task_id: int,
+    task_data: TaskUpdate = Body(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_user),
 ):
@@ -79,17 +79,18 @@ def finish_a_task(
 
 
 # Поиск по ключу
-@router.get("/tasks/search/{keyword}", response_model=List[TaskOut])
+@router.get("/tasks/search", response_model=List[TaskOut])
 def search_tasks_keyword(
-    keyword: Optional[str],
+    keyword: Optional[str] = Query(None, description="Ключевое слово для поиска"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_user),
 ):
+    if keyword is None or not keyword.strip():
+        raise HTTPException(
+            status_code=400, detail="Ключевое слово не может быть пустым"
+        )
 
-    if keyword is None:
-        keyword = ""  # или raise HTTPException
-    result = search_tasks(db, keyword, current_user)
-    return result
+    return search_tasks(db, keyword, current_user)
 
 
 # Удалить задачу

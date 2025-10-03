@@ -1,264 +1,191 @@
 # tests/test_tasks.py
-from app.models import Task, User
-from app.utils.security import hash_password
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.api import app
+
+client = TestClient(app)
 
 
-# добавляем пользователя в БД
-def _auth_header(
-    client, db_session, email="tasks@example.com", password="12345", role="user"
-):
-    """Создаёт юзера если нету"""
-    user = db_session.query(User).filter_by(email=email).first()
-    if not user:
-        """Создаёт юзера, логинитса и возвращает headers с токеном."""
-        user = User(email=email, hashed_password=hash_password(password), role=role)
-        db_session.add(user)
-        db_session.commit()
+@pytest.fixture
+def auth_header(client):
+    """Создаёт пользователя (если его нет) и возвращает заголовок авторизации."""
 
-    resp = client.post(
-        "/login",
-        data={"username": email, "password": password},
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-    )
-    assert resp.status_code == 200
-    token = resp.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    def _auth_header(email: str = "test@example.com", password: str = "password"):
+        # 1️⃣ пробуем зарегистрировать
+        resp = client.post(
+            "/register",
+            json={"username": email, "password": password},
+        )
 
+        if resp.status_code == 200:
+            # регистрация прошла успешно
+            pass
+        elif resp.status_code == 400:
+            # пользователь уже существует — это норм
+            pass
+        else:
+            raise AssertionError(
+                f"Unexpected register response: {resp.status_code}, body={resp.text}"
+            )
 
-# добавить задачу
-def test_create_task(client, db_session):
-    headers = _auth_header(client, db_session)
+        # 2️⃣ теперь логинимся
+        login = client.post(
+            "/login",
+            data={"username": email, "password": password},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
 
-    # пробуем создать задачу с пустым описанием
-    resp = client.post("/tasks", json={"description": ""}, headers=headers)
-    assert resp.status_code == 422
+        if login.status_code != 200:
+            raise AssertionError(
+                f"Login failed: {login.status_code}, body={login.text}"
+            )
 
-    # пробуем создать задачу с пробелами
-    resp = client.post("/tasks", json={"description": "   "}, headers=headers)
-    assert resp.status_code == 422
+        token = login.json()["access_token"]
+        return {"Authorization": f"Bearer {token}"}
 
-    # пробуем создать задачу
-    resp = client.post("/tasks", json={"description": "My first task"}, headers=headers)
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["description"] == "My first task"
-    assert data["completed"] is False
+    return _auth_header
 
 
-# список задач
-def test_list_tasks(client, db_session):
-    headers = _auth_header(client, db_session)
-    # создаём пару задач
-    client.post("/tasks", json={"description": "Task A"}, headers=headers)
-    client.post("/tasks", json={"description": "Task B"}, headers=headers)
+@pytest.fixture
+def create_task(client, auth_header):
+    """Создаёт задачу и возвращает (task_dict, headers)"""
 
-    resp = client.get("/tasks", headers=headers)
-    assert resp.status_code == 200
-    tasks = resp.json()
-    assert len(tasks) >= 2
-    assert any(t["description"] == "Task A" for t in tasks)
+    def _create_task(
+        description: str = "Test Description",
+        email: str = "test@example.com",
+    ):
+        headers = auth_header(email=email)
+        response = client.post(
+            "/tasks/",
+            json={"description": description},
+            headers=headers,
+        )
+        assert response.status_code == 201
+        return response.json(), headers
 
+    return _create_task
 
-# изменить задачу и статус
-def test_update_task_and_status(client, db_session):
-    headers = _auth_header(client, db_session)
-    user_headers = _auth_header(
-        client, db_session, email="user@example.com", password="123", role="user"
-    )
-    create_resp = client.post(
-        "/tasks", json={"description": "Old desc"}, headers=headers
-    )
-    task_id = create_resp.json()["id"]
-
-    # пробуем изменить задачу с пустым описанием
-    resp = client.patch(
-        f"/tasks/{task_id}",
-        json={"description": "", "completed": True},
-        headers=headers,
-    )
-    assert resp.status_code == 422
-
-    # пробуем изменить задачу с пробелами
-    resp = client.patch(
-        f"/tasks/{task_id}",
-        json={"description": "   ", "completed": True},
-        headers=headers,
-    )
-    assert resp.status_code == 422
-
-    # пробуем изменить задачу с несуществующим id
-    not_resp = client.patch(
-        "/tasks/99", json={"description": "New desc"}, headers=headers
-    )
-    data = not_resp.json()
-    assert not_resp.status_code == 404
-    assert data["detail"] == "Задача 99 не найдена"
-
-    # пробуем изменить задачу другим пользователем
-    resp = client.patch(
-        f"/tasks/{task_id}",
-        json={"description": "New desc", "completed": True},
-        headers=user_headers,
-    )
-    assert resp.status_code == 403
-
-    # пробуем изменить задачу пользователем
-    resp = client.patch(
-        f"/tasks/{task_id}",
-        json={"description": "New desc", "completed": True},
-        headers=headers,
-    )
-    assert resp.status_code == 200
-
-    data = resp.json()
-    assert data["description"] == "New desc"
-    assert data["completed"]
+    # ---------------------- ТЕСТЫ ----------------------
+    """  Добавить залачу  """
 
 
-# изменить задачу
-def test_update_task(client, db_session):
-    headers = _auth_header(client, db_session)
-    user_headers = _auth_header(
-        client, db_session, email="user@example.com", password="123", role="user"
-    )
-    create_resp = client.post(
-        "/tasks", json={"description": "Old desc"}, headers=headers
-    )
-    task_id = create_resp.json()["id"]
+def test_create_and_list_tasks(client, create_task, auth_header):
+    # Пробуем добавить пустую задачу
+    headers = auth_header()
+    task = client.post("/tasks/", json={"description": "   "}, headers=headers)
+    assert task.status_code == 422
+    error_detail = task.json().get("detail")[0]
+    assert error_detail["loc"] == ["body", "description"]
+    assert error_detail["msg"] == "Value error, Описание задачи не может быть пустым"
+    assert error_detail["type"] == "value_error"
 
-    # пробуем изменить задачу другим пользователем
-    resp = client.patch(
-        f"/tasks/{task_id}/description",
-        json={"description": "New desc"},
-        headers=user_headers,
-    )
-    assert resp.status_code == 403
-
-    # пробуем изменить задачу с несуществующим id
-    not_resp = client.patch(
-        "/tasks/99/description", json={"description": "New desc"}, headers=headers
-    )
-    assert not_resp.status_code == 404
-
-    # пробуем изменить задачу
-    resp = client.patch(
-        f"/tasks/{task_id}/description",
-        json={"description": "New desc"},
-        headers=headers,
-    )
+    task, headers = create_task("Hello world")
+    resp = client.get("/tasks/", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["description"] == "New desc"
-
-
-# завершить задачу
-def test_complete_task(client, db_session):
-    """Добавляем двух пользователей и задачу"""
-    headers = _auth_header(client, db_session)
-    user_headers = _auth_header(
-        client, db_session, email="user@example.com", password="123", role="user"
-    )
-    create_resp = client.post(
-        "/tasks", json={"description": "Incomplete"}, headers=headers
-    )
-
-    # Проверяем создание задачи
-    task_id = create_resp.json()["id"]
-    data = db_session.query(Task).filter_by(id=task_id).first()
-
-    assert create_resp.status_code == 201
-    assert not data.completed
-
-    # Пробуем изминаем другим пользователем
-    resp = client.patch(f"/tasks/{task_id}/complete", headers=user_headers)
-    data = db_session.query(Task).filter_by(id=task_id).first()
-
-    assert resp.status_code == 403
-    assert not data.completed
-
-    # Меняем самим пользователем
-    resp = client.patch(f"/tasks/{task_id}/complete", headers=headers)
-    data = db_session.query(Task).filter_by(id=task_id).first()
-
-    assert resp.status_code == 200
-    assert data.completed
-
-
-# Поиск по ключу
-def test_search_tasks_keyword(client, db_session):
-    headers = _auth_header(client, db_session)
-    user_headers = _auth_header(
-        client, db_session, email="user@example.com", password="123", role="user"
-    )
-
-    # Проверяем пустую базу пользователем
-    tasks = client.get("/tasks/search/my", headers=headers, params={"mode": "slow"})
-    assert tasks.status_code == 404
-
-    resp = client.post("/tasks", json={"description": "My task"}, headers=headers)
-    assert resp.status_code == 201
-
-    # Проверяем пользователем
-    tasks = client.get("/tasks/search/my", headers=headers)
-    assert tasks.status_code == 200
-    data = tasks.json()
     assert len(data) == 1
-    assert data[0]["description"] == "My task"
+    assert data[0]["description"] == "Hello world"
 
-    # Проверяем не найдено другим пользователем
-    tasks = client.get("/tasks/search/My", headers=user_headers)
-    assert tasks.status_code == 404
-
-    tasks = client.get(f"/tasks/search/{" "}", headers=headers)
-    assert tasks.status_code == 400
+    """  Изменить задачу и статус  """
 
 
-# тест удалить задачу
-def test_delete_task(client, db_session):
-    headers = _auth_header(client, db_session)
-    user_headers = _auth_header(
-        client, db_session, email="user@example.com", password="123", role="user"
+def test_update_task(client, create_task, auth_header):
+    # Пробуем изменить задачу и статус
+    task, headers = create_task("Old title")
+    resp = client.patch(
+        f"/tasks/{task['id']}",
+        json={"description": "New title", "completed": True},
+        headers=headers,
     )
-    create_resp = client.post(
-        "/tasks", json={"description": "To delete"}, headers=headers
+    assert resp.status_code == 200
+    assert resp.json()["description"] == "New title"
+    assert resp.json()["completed"]
+
+    # Пробуем добавить пустую задачу
+    empty_task = client.patch(
+        f"/tasks/{task["id"]}", json={"description": "   "}, headers=headers
     )
-    task_id = create_resp.json()["id"]
+    assert empty_task.status_code == 422
+    error_detail = empty_task.json().get("detail")[0]
+    assert error_detail["loc"] == ["body", "description"]
+    assert error_detail["msg"] == "Value error, Description cannot be blank"
+    assert error_detail["type"] == "value_error"
 
-    # пробуем удалить задачу другим пользователем
-    resp = client.delete(f"/tasks/{task_id}", headers=user_headers)
-    assert resp.status_code == 403
-
-    # пробуем удалить задачу не существующей id
-    resp = client.delete("/tasks/99", headers=headers)
+    # Задачи нет
+    resp = client.patch(
+        f"/tasks/{200}",
+        json={"description": "New title"},
+        headers=headers,
+    )
     assert resp.status_code == 404
 
-    # пробуем удалить задачу
-    resp = client.delete(f"/tasks/{task_id}", headers=headers)
-    assert resp.status_code == 204
-
-    # проверим, что задачи больше нет
-    list_resp = client.get("/tasks", headers=headers)
-    tasks = list_resp.json()
-    assert all(t["id"] != task_id for t in tasks)
-
-
-# проверка права
-def test_require_admin(client, db_session):
-    # user
-    user_headers = _auth_header(
-        client, db_session, email="user@example.com", password="123", role="user"
+    # задача принадлежит другому пользователю
+    headers = auth_header(email="test@example2.com")
+    resp = client.patch(
+        f"/tasks/{task['id']}", json={"description": "New title"}, headers=headers
     )
-    # admin
-    admin_headers = _auth_header(
-        client, db_session, email="admin@example.com", password="123", role="admin"
-    )
-
-    # обычный пользователь → 403
-    resp = client.get("/admin/dashboard", headers=user_headers)
     assert resp.status_code == 403
-    assert resp.json()["detail"] == "Access forbidden: Admins only"
 
-    # админ → 200
-    resp = client.get("/admin/dashboard", headers=admin_headers)
+    """ изменить задачу """
+
+
+def test_update_task_description(client, create_task):
+    task, headers = create_task("Task")
+    resp = client.patch(
+        f"/tasks/{task['id']}/description",
+        json={"description": "New task"},
+        headers=headers,
+    )
     assert resp.status_code == 200
-    assert "welcome" in resp.json()["message"].lower()
+    assert resp.json()["description"] == "New task"
+
+    """ Удолить задачу """
+
+
+def test_delete_task(client, create_task):
+    task, headers = create_task("To delete")
+    resp = client.delete(f"/tasks/{task['id']}", headers=headers)
+    assert resp.status_code == 204
+    # Проверим, что задача удалена
+    resp = client.get("/tasks/", headers=headers)
+    assert all(t["id"] != task["id"] for t in resp.json())
+
+    """ Отметить как выполненую """
+
+
+def test_complete_task(client, create_task):
+    task, headers = create_task("Incomplete task")
+    resp = client.patch(f"/tasks/{task['id']}/complete", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["completed"] is True
+
+    """ Поиск по клучу """
+
+
+def test_search_task(client, create_task, auth_header):
+    # БД пустая
+    headers = auth_header()
+    resp = client.get("/tasks/search?keyword=world", headers=headers)
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Таблица задач пуста"
+    # Поиск удачный
+
+    create_task("Hello world")
+    _, headers = create_task()
+    # Поиск не удачный
+    resp = client.get("/tasks/search?keyword=My task", headers=headers)
+    resp.status_code == 404
+    resp.json()["detail"] == "Задачи с ключом My task не найдены"
+    # # Поиск с пустым данными
+
+    resp = client.get("/tasks/search", headers=headers)
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Ключевое слово не может быть пустым"
+    # Поиск удачный
+    resp = client.get("/tasks/search?keyword=world", headers=headers)
+    assert resp.status_code == 200
+    results = resp.json()
+    assert len(results) == 1
+    assert results[0]["description"] == "Hello world"

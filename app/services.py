@@ -1,4 +1,3 @@
-# Создание пользователя
 # app/services.py
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -19,7 +18,7 @@ def create_user(
     if existing_user:
         raise ValueError("Пользователь с таким email уже существует")
     hashed_pw = hash_password(user_data.password)
-    db_user = User(email=user_data.username, hashed_password=hashed_pw, role=role)
+    db_user = User(email=user_data.username, hashed_password=hashed_pw, role=role)  # type: ignore
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -37,7 +36,7 @@ def list_tasks(db: Session, user: User):
 
 # Добавить задачу
 def add_task(db: Session, new_description: str, user: User) -> Task:
-    new_task = Task(description=new_description.strip(), user_id=user.id)
+    new_task = Task(description=new_description.strip(), user_id=user.id)  # type: ignore
     db.add(new_task)
     db.commit()
     db.refresh(new_task)
@@ -114,11 +113,6 @@ def search_tasks(
     if not existing_tasks:
         detail = "Таблица задач пуста"
         raise HTTPException(status_code=404, detail=detail)
-
-    keyword = (keyword or "").strip()
-    if not keyword:
-        detail = "Ключевое слово не может быть пустым"
-        raise HTTPException(status_code=400, detail=detail)
 
     query = select(Task).where(Task.description.ilike(f"%{keyword}%"))
     # Если не админ — фильтруем по user_id

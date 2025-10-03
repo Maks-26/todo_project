@@ -6,53 +6,56 @@ from app.models import User
 
 
 def _assert_ok(resp):
-    # Если упадёт, сразу увидишь причину от FastAPI
+    """
+    Проверка: статус 200, иначе покажем текст ответа.
+    """
     assert resp.status_code == 200, resp.text
 
 
-# Позитив: регистрация обычного пользователя (role=user по dropdown/query
 def test_register_user_default_role(client, db_session: Session):
-    # Отправляем JSON-тело + выбираем роль через query (?role=user)
+    """
+    ✅ Позитивная проверка: регистрация пользователя с ролью 'user'.
+    """
     resp = client.post(
         "/register?role=user",
-        json={"email": "u1@example.com", "password": "pass123"},
+        json={"username": "u1@example.com", "password": "pass123"},
     )
     _assert_ok(resp)
     data = resp.json()
     assert "access_token" in data
 
+    # Проверяем, что пользователь появился в БД
     user = db_session.query(User).filter_by(email="u1@example.com").first()
     assert user is not None
     assert user.role == "user"
 
 
-# Позитив: регистрация администратора (role=admin через dropdown/query)
-def test_register_admin_role(client, db_session: Session):
-    resp = client.post(
-        "/register?role=admin",
-        json={"email": "admin@example.com", "password": "secret123"},
-    )
-    _assert_ok(resp)
-
-    # Проверяем, что пользователь записан в БД с правильной ролью
-    user = db_session.query(User).filter_by(email="admin@example.com").first()
+def test_register_admin_role(admin_user, db_session: Session):
+    """
+    ✅ Проверка через фикстуру: администратор создан в БД с ролью 'admin'.
+    """
+    # admin_user уже создан фикстурой → проверим в базе
+    user = db_session.query(User).filter_by(email=admin_user.email).first()
     assert user is not None
     assert user.role == "admin"
 
 
-# Негатив: повторная регистрация с тем же email → 400
-def test_register_duplicate_email_(client, db_session: Session):
+def test_register_duplicate_email(client, db_session: Session):
+    """
+    ❌ Негативная проверка: повторная регистрация с тем же email → 400.
+    """
+    # Первый запрос проходит успешно
     first = client.post(
         "/register?role=user",
-        json={"email": "dup@example.com", "password": "x"},
+        json={"username": "dup@example.com", "password": "x"},
     )
     _assert_ok(first)
 
+    # Повторный запрос с тем же email должен упасть
     second = client.post(
         "/register?role=admin",
-        json={"email": "dup@example.com", "password": "x"},
+        json={"username": "dup@example.com", "password": "x"},
     )
-    print(">>>>", second.status_code, second.json())
-    # Должна быть 400, а если не так — покажем тело ответа
+
     assert second.status_code == 400, second.text
     assert "уже существует" in second.json()["detail"]

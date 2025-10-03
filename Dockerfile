@@ -1,23 +1,31 @@
-# 1. Базовый образ Python
+# Dockerfile
 FROM python:3.13-slim
 
-# 2. Устанавливаем зависимости для Poetry
-RUN apt-get update && apt-get install -y curl && \
-    curl -sSL https://install.python-poetry.org | python3 - && \
-    ln -s /root/.local/bin/poetry /usr/local/bin/poetry
+# Устанавливаем зависимости системы для bcrypt и других пакетов
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libffi-dev \
+    libssl-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# 3. Рабочая директория внутри контейнера
+# Устанавливаем Poetry
+RUN curl -sSL https://install.python-poetry.org | python3 - \
+    && ln -s /root/.local/bin/poetry /usr/local/bin/poetry
+
+# Рабочая директория
 WORKDIR /app
 
-# 4. Копируем только файлы конфигурации Poetry
+# Копируем файлы зависимостей
 COPY pyproject.toml poetry.lock* ./
 
-# 5. Устанавливаем зависимости через Poetry (без виртуального окружения)
+# Устанавливаем зависимости через Poetry (без виртуального окружения)
 RUN poetry config virtualenvs.create false \
     && poetry install --no-root --no-interaction --no-ansi
 
-# 6. Копируем весь проект
+# Копируем проект
 COPY . .
 
-# 7. Команда запуска
+# По умолчанию запускаем API (можно переопределить командой в docker-compose.override.yml)
 CMD ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8000"]
+

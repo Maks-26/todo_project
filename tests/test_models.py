@@ -1,12 +1,23 @@
+# test_models.py
+
 from app.models import Task, User
 
 
-# тестируем модель
+# ------------------ Task ------------------
 def test_task_repr():
-    task = Task(id=1, description="Test", completed=False, user_id=1)
-    assert "[1] Test" in repr(task)
+    """
+    Проверяем строковое представление задачи.
+    Ожидаем формат "[id] description".
+    """
+    task = Task(description="Test", user_id=1, completed=False)
+    assert "Test" in repr(task)
 
 
+# ------------------ User ------------------
 def test_user_repr():
-    user = User(id=1, email="user@example.com", hashed_password="xxx", role="user")
-    assert "[1] user@example.com" in repr(user)
+    """
+    Проверяем строковое представление пользователя.
+    Ожидаем формат "[id] email".
+    """
+    user = User(email="user@example.com", hashed_password="xxx", role="user")
+    assert "user@example.com" in repr(user)

@@ -2,8 +2,9 @@
 from enum import Enum
 from typing import Annotated, Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, validator
 from pydantic.config import ConfigDict
+from pydantic.fields import Field
 
 
 # 🎭 Перечисление ролей
@@ -37,13 +38,23 @@ class TaskCreate(BaseModel):
     description: Annotated[str, Field(min_length=1, strip_whitespace=True)]
     model_config = ConfigDict(from_attributes=True)
 
+    @validator("description")
+    def not_empty(cls, v):
+        if not v.strip():
+            raise ValueError("Описание задачи не может быть пустым")
+        return v.strip()
+
 
 # изменение статуса и задачи
 class TaskUpdate(BaseModel):
-    description: Annotated[
-        Optional[str], Field(min_length=1, strip_whitespace=True)
-    ] = None
+    description: Optional[str] = None
     completed: Optional[bool] = None
+
+    @validator("description")
+    def not_blank(cls, v):
+        if v is not None and v.strip() == "":
+            raise ValueError("Description cannot be blank")
+        return v
 
 
 # изменение задачи
@@ -69,17 +80,3 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(
         from_attributes=True
     )  # позволяет работать с ORM-моделью User напрямую
-
-
-"""
-class UserBase(BaseModel):
-    email: EmailStr
-    role: Optional[str] = "user"
-
-class UserCreate(UserBase):
-    password: str
-
-class UserOut(UserBase):
-    id: int
-    model_config = ConfigDict(from_attributes=True)
-"""

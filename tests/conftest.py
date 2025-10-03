@@ -1,53 +1,28 @@
 # tests/conftest.py
 
-"""
-# Для загруски тестовой БД без плагина poetry add --dev pytest-dotenv
-import os
-from dotenv import load_dotenv
-
-# Явно грузим .env.test
-load_dotenv(".env.test")
-
-# Теперь os.environ["DATABASE_URL"] и другие доступны
-"""
 import os
 
-# tests/conftest.py
 import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool
 
-from app import Base  # общий Base для моделей
-from app.api import app  # наш FastAPI-приложение
-from app.dependencies import get_db  # оригинальная зависимость доступа к БД
+from app import Base
+from app.api import app
+from app.dependencies import get_db
+from app.models import User
+from app.utils.security import hash_password
 
-# 1) Создаём engine на основе DATABASE_URL из окружения
+# Загружаем переменные окружения
 load_dotenv(".env.test")
 DATABASE_URL = os.environ["DATABASE_URL"]
 
-connect_args = {}
-poolclass = None
+# Создаём движок SQLAlchemy для тестовой базы
+TEST_ENGINE = create_engine(DATABASE_URL, poolclass=NullPool)
 
-# Если это SQLite in-memory — нужны специальные параметры
-# - check_same_thread=False — разрешает доступ из разных потоков (TestClient)
-# - StaticPool — все сессии используют одно и то же подключение (иначе таблицы "исчезнут") # noqa: E501
-if DATABASE_URL.startswith("sqlite") and ":memory:" in DATABASE_URL:
-    connect_args = {"check_same_thread": False}
-    poolclass = StaticPool
-
-elif "test" not in DATABASE_URL:
-    raise RuntimeError(f"Refusing to run tests on non-test database: {DATABASE_URL}")
-
-TEST_ENGINE = create_engine(
-    DATABASE_URL,
-    connect_args=connect_args,
-    poolclass=poolclass,
-)
-
-# Создаём фабрику сессий, привязанную к нашему тестовому engine
+# Сессия для тестов
 TestingSessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
@@ -55,48 +30,64 @@ TestingSessionLocal = sessionmaker(
 )
 
 
-# ==========================
-# Глобальная настройка БД (один раз на всю сессию тестов)
-# ==========================
+# ------------------------------------------------------------------
+# 1️⃣ Подготовка базы (создаём все таблицы один раз на сессию)
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
-
     Base.metadata.create_all(bind=TEST_ENGINE)
     yield
+    # drop_all безопасно вызывает после всех тестов
     Base.metadata.drop_all(bind=TEST_ENGINE)
 
 
-# ==========================
-# Фикстура для отдельного теста: отдаём чистую сессию
-# ==========================
+# ------------------------------------------------------------------
+# 2️⃣ Сессия на каждый тест (rollback после теста)
 @pytest.fixture
 def db_session():
     session = TestingSessionLocal()
     try:
         yield session
+        session.rollback()
     finally:
         session.close()
 
 
-# ==========================
-# 6. Переопределяем get_db внутри FastAPI на нашу тестовую сессию
-# ==========================
+# ------------------------------------------------------------------
+# Чистим БД
+@pytest.fixture(autouse=True)
+def clean_db(db_session):
+    for table in reversed(Base.metadata.sorted_tables):
+        db_session.execute(table.delete())
+    db_session.commit()
+
+
+# ------------------------------------------------------------------
+# 3️⃣ Админ-пользователь
+@pytest.fixture
+def admin_user(db_session):
+    user = User(
+        email="admin@example.com", hashed_password=hash_password("123"), role="admin"
+    )
+    db_session.add(user)
+    db_session.commit()
+    return user
+
+
+# ------------------------------------------------------------------
+# 4️⃣ Подмена get_db для FastAPI
 @pytest.fixture(autouse=True)
 def override_get_db(db_session):
     def _override():
-        try:
-            yield db_session
-        finally:
-            pass
+        yield db_session
 
     app.dependency_overrides[get_db] = _override
     yield
     app.dependency_overrides.pop(get_db, None)
 
 
-# 5) Клиент для вызова API внутри тестов
+# ------------------------------------------------------------------
+# 5️⃣ Синхронный клиент FastAPI
 @pytest.fixture
 def client():
-    # TestClient поднимает ASGI-приложение в тестовом режиме
     with TestClient(app) as c:
         yield c

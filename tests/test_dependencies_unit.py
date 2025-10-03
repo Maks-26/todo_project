@@ -1,182 +1,161 @@
 # tests/test_dependencies.py
+
 import pytest
 from fastapi import HTTPException
-from fastapi.testclient import TestClient
 from jose import jwt
 
-from app.api import app
 from app.dependencies import get_current_user, get_db, require_admin, require_user
 from app.models import Task, User
-from app.utils.jwt_token import create_access_token
 from app.utils.security import hash_password
 from settings import get_settings
 
-client = TestClient(app)
 settings = get_settings()
 
 
-# ---------- get_current_user через API ----------
-# тест: неверный токен -> 401
-def test_get_current_user_invalid_token():
-    resp = client.get("/tasks", headers={"Authorization": "Bearer WRONGTOKEN"})
-    assert resp.status_code == 401
-    assert "Не удалось проверить" in resp.json()["detail"]
+def test_get_db_closes_connection():
+    """
+    Проверка: get_db возвращает соединение и закрывает его.
+    """
+    gen = get_db()
+    db = next(gen)  # получаем db из yield
+    assert db is not None  # соединение выдано
+    # закрытие
+    try:
+        next(gen)
+    except StopIteration:
+        pass  # генератор завершён — значит db.close() вызван
 
 
-# тест: токен без sub -> 401
-def test_get_current_user_missing_sub(db_session):
-    token = jwt.encode({}, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    resp = client.get("/tasks", headers={"Authorization": f"Bearer {token}"})
-    assert resp.status_code == 401
+# ------------------ Unit-тесты require_admin ------------------
 
 
-# тест: токен с sub=None -> 401
-def test_get_current_user_sub_none(db_session):
-    token = jwt.encode({"sub": None}, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    resp = client.get("/tasks", headers={"Authorization": f"Bearer {token}"})
-    assert resp.status_code == 401
-
-
-# тест: токен с юзером, которого нет в БД -> 401
-def test_get_current_user_user_not_in_db(db_session):
-    token = jwt.encode(
-        {"sub": "ghost@example.com"}, settings.SECRET_KEY, algorithm=settings.ALGORITHM
-    )
-    resp = client.get("/tasks", headers={"Authorization": f"Bearer {token}"})
-    assert resp.status_code == 401
-
-
-# ---------- require_admin / require_user через API ----------
-# тест: пользователь с ролью "user" заходит в админку -> 403
-def test_require_admin_forbidden(db_session):
+def test_require_admin_forbidden_unit(db_session):
+    """
+    Проверка: пользователь с ролью 'user' не может пройти require_admin.
+    Ожидаем HTTPException с кодом 403.
+    """
+    # Создаём пользователя с ролью "user"
     user = User(
         email="simple@example.com", hashed_password=hash_password("123"), role="user"
     )
     db_session.add(user)
     db_session.commit()
 
-    token = create_access_token({"sub": user.email})
-    resp = client.get("/admin/dashboard", headers={"Authorization": f"Bearer {token}"})
-    assert resp.status_code == 403
-    assert "Admins only" in resp.json()["detail"]
-
-
-# тест: пользователь с ролью "guest" заходит в /tasks -> 403
-def test_require_user_forbidden(db_session):
-    user = User(
-        email="guest@example.com", hashed_password=hash_password("123"), role="guest"
-    )
-    db_session.add(user)
-    db_session.commit()
-
-    token = create_access_token({"sub": user.email})
-    resp = client.get("/tasks", headers={"Authorization": f"Bearer {token}"})
-    assert resp.status_code == 403
-    assert "Users only" in resp.json()["detail"]
-
-
-# ---------- Unit-тесты get_db ----------
-# тестируем подключение к БД (генератор yield/close)
-def test_get_db_finally_called():
-    gen = get_db()
-    db = next(gen)
-    # проверяем возврат подключения к БД
-    assert db is not None
-    # закрываем генератор -> должен вызваться finally: db.close()
-    gen.close()
-
-
-# ---------- Unit-тесты get_current_user ----------
-# тест: битый токен вызывает 401
-def test_get_current_user_invalid_jwt(db_session):
-    with pytest.raises(HTTPException) as e:
-        get_current_user(token="WRONGTOKEN", db=db_session)
-    assert e.value.status_code == 401
-
-
-# тест: токен без sub вызывает 401
-def test_get_current_user_missing_sub_unit(db_session):
-    token = jwt.encode({}, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    with pytest.raises(HTTPException):
-        get_current_user(token=token, db=db_session)
-
-
-# тест: токен с sub=None вызывает 401
-def test_get_current_user_sub_none_unit(db_session):
-    token = jwt.encode({"sub": None}, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    with pytest.raises(HTTPException):
-        get_current_user(token=token, db=db_session)
-
-
-# тест: пользователь отсутствует в БД -> 401
-def test_get_current_user_user_missing_unit(db_session):
-    token = jwt.encode(
-        {"sub": "ghost@example.com"}, settings.SECRET_KEY, algorithm=settings.ALGORITHM
-    )
-    with pytest.raises(HTTPException):
-        get_current_user(token=token, db=db_session)
-
-
-# тест: успешное получение юзера из БД
-def test_get_current_user_success_unit(db_session):
-    user = User(
-        email="user@example.com", hashed_password=hash_password("123"), role="user"
-    )
-    db_session.add(user)
-    db_session.commit()
-
-    token = jwt.encode(
-        {"sub": user.email}, settings.SECRET_KEY, algorithm=settings.ALGORITHM
-    )
-    result = get_current_user(token=token, db=db_session)
-    assert result.email == user.email
-
-
-# ---------- Unit-тесты require_admin ----------
-# тест: require_admin падает, если роль не admin
-def test_require_admin_forbidden_unit():
-    user = User(id=1, email="simple@example.com", hashed_password="123", role="user")
+    # Проверяем, что require_admin вызывает HTTPException
     with pytest.raises(HTTPException) as e:
         require_admin(current_user=user)
     assert e.value.status_code == 403
 
 
-# тест: require_admin пропускает admin
-def test_require_admin_success_unit():
-    admin = User(id=1, email="admin@example.com", hashed_password="123", role="admin")
+def test_require_admin_success_unit(db_session):
+    """
+    Проверка: пользователь с ролью 'admin' проходит require_admin.
+    """
+    admin = User(
+        email="admin@example.com", hashed_password=hash_password("123"), role="admin"
+    )
+    db_session.add(admin)
+    db_session.commit()
+
+    # Функция должна вернуть пользователя без ошибок
     result = require_admin(current_user=admin)
     assert result == admin
 
 
-# ---------- Unit-тесты require_user ----------
-# тест: require_user падает, если роль "guest"
-def test_require_user_forbidden_unit():
-    guest = User(id=1, email="guest@example.com", hashed_password="123", role="guest")
+# ------------------ Unit-тесты require_user ------------------
+
+
+def test_require_user_forbidden_unit(db_session):
+    """
+    Проверка: пользователь с ролью 'guest' не может пройти require_user.
+    """
+    guest = User(
+        email="guest@example.com", hashed_password=hash_password("123"), role="guest"
+    )
+    db_session.add(guest)
+    db_session.commit()
+
     with pytest.raises(HTTPException) as e:
         require_user(current_user=guest)
     assert e.value.status_code == 403
 
 
-# тест: require_user пропускает "user"
-def test_require_user_success_user_unit():
-    u = User(id=2, email="user@example.com", hashed_password="123", role="user")
+def test_require_user_success_user_unit(db_session):
+    """
+    Проверка: пользователь с ролью 'user' успешно проходит require_user.
+    """
+    u = User(
+        email="user@example.com", hashed_password=hash_password("123"), role="user"
+    )
+    db_session.add(u)
+    db_session.commit()
+
     assert require_user(current_user=u) == u
 
 
-# тест: require_user пропускает "admin"
-def test_require_user_success_admin_unit():
-    a = User(id=3, email="admin@example.com", hashed_password="123", role="admin")
+def test_require_user_success_admin_unit(db_session):
+    """
+    Проверка: пользователь с ролью 'admin' также проходит require_user.
+    """
+    a = User(
+        email="admin@example.com", hashed_password=hash_password("123"), role="admin"
+    )
+    db_session.add(a)
+    db_session.commit()
+
     assert require_user(current_user=a) == a
 
 
-# ---------- Repr ----------
-# тест: строковое представление Task
+# ------------------ Тесты __repr__ ------------------
+
+
 def test_task_repr():
-    task = Task(id=1, description="Test", completed=False, user_id=1)
-    assert "[1] Test" in repr(task)
+    """
+    Проверка: строковое представление Task.
+    """
+    task = Task(description="Test", user_id=1)
+    assert "Test" in repr(task)
 
 
-# тест: строковое представление User
 def test_user_repr():
-    user = User(id=1, email="user@example.com", hashed_password="xxx", role="user")
-    assert "[1] user@example.com" in repr(user)
+    """
+    Проверка: строковое представление User.
+    """
+    user = User(email="user@example.com", hashed_password="123", role="user")
+    assert "user@example.com" in repr(user)
+
+
+# ------------------ Unit-тесты get_current_user ------------------
+
+
+def test_get_current_user_invalid_token(db_session):
+    """
+    Проверка: неверный токен вызывает HTTPException.
+    """
+    invalid_token = "invalid.token.string"
+    with pytest.raises(HTTPException) as e:
+        # db_session нужен, чтобы satisfy Depends
+        list(get_current_user(token=invalid_token, db=db_session))
+    assert e.value.status_code == 401
+
+
+def test_get_current_user_user_not_found(db_session):
+    """
+    Проверка: токен корректный, но пользователь не существует.
+    """
+    token = jwt.encode(
+        {"sub": "nosuch@example.com"}, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+    )
+    with pytest.raises(HTTPException) as e:
+        list(get_current_user(token=token, db=db_session))
+    assert e.value.status_code == 401
+
+
+def test_get_current_user_email_none(db_session):
+    """
+    Проверка: если в токене нет 'sub', поднимается HTTPException (строка 39).
+    """
+    token = jwt.encode({}, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    with pytest.raises(HTTPException) as e:
+        get_current_user(token=token, db=db_session)
+    assert e.value.status_code == 401

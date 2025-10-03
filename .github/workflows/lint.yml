@@ -37,18 +37,23 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
+      # Проверка форматирования
       - name: Run Black
         run: poetry run black . --check
 
-      - name: Run Ruff
-        run: poetry run ruff check .
-
-      - name: Run Flake8
-        run: poetry run flake8 .
-
+      # Проверка импортов
       - name: Run Isort
         run: poetry run isort . --check
 
+      # Линтинг и статический анализ (замена Flake8)
+      - name: Run Ruff
+        run: poetry run ruff check .
+
+      # Проверка типов
+      - name: Run MyPy
+        run: poetry run mypy app
+
+      # Тесты с покрытием
       - name: Run Pytest with Coverage
         run: poetry run pytest --cov=app --cov-report=term-missing
 

@@ -43,7 +43,6 @@ def main():
 
     args = parser.parse_args()
     with SessionLocal() as session:
-
         match args.command:
             # Добавить задачу
             case "add":

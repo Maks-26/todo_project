@@ -1,19 +1,30 @@
+# docker-compose.yml
+
+
 services:
   db:
-    image: postgres:15
+    image: postgres:16
+    container_name: todo_project-db-1
+    restart: always
     environment:
-      POSTGRES_USER: myuser
-      POSTGRES_PASSWORD: mypassword
-      POSTGRES_DB: mydb
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_pass
+      POSTGRES_DB: test_db
     ports:
       - "5432:5432"
     volumes:
-      - ./db-init/init-test.sql:/docker-entrypoint-initdb.d/init-test.sql
-      
-  api:
-    build: .
+      - db_data:/var/lib/postgresql/data
+
+  api-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: todo_project-api-tests-1
     depends_on:
       - db
-    ports:
-      - "8000:8000"
-    env_file: .env
+    env_file:
+      - .env.test
+    command: ["sleep", "infinity"]
+
+volumes:
+  db_data:
