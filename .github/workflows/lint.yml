@@ -55,7 +55,8 @@ jobs:
 
       # Тесты с покрытием
       - name: Run Pytest with Coverage
-        run: poetry run pytest --cov=app --cov-report=term-missing
+        # run: poetry run pytest --cov=app --cov-report=term-missing
+        run: poetry run pytest --cov=app --cov-report=html
 
       - name: Сохранить отчет покрытия как артефакт
         uses: actions/upload-artifact@v4
