@@ -1,6 +1,8 @@
 # app/services.py
+from typing import List, Optional, Tuple
+
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models import Task, User
@@ -18,7 +20,9 @@ def create_user(
     if existing_user:
         raise ValueError("Пользователь с таким email уже существует")
     hashed_pw = hash_password(user_data.password)
-    db_user = User(email=user_data.username, hashed_password=hashed_pw, role=role)  # type: ignore
+    db_user = User(
+        email=user_data.username, hashed_password=hashed_pw, role=role
+    )  # type: ignore
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -26,17 +30,54 @@ def create_user(
 
 
 # Показать все задачи
-def list_tasks(db: Session, user: User):
+def list_tasks(
+    db: Session,
+    user: User,
+    skip: int = 0,
+    limit: int = 10,
+    completed: Optional[bool] = None,
+    search: Optional[str] = None,
+) -> Tuple[List[Task], int]:
+    """
+    Возвращает задачи + общее количество (для пагинации на фронтенде)
+    """
     query = select(Task).options(joinedload(Task.user))
+
+    # 1️⃣ Если не админ — показываем только свои задачи
     if user.role != "admin":
         query = query.where(Task.user_id == user.id)
+
+    # 2️⃣ Фильтрация по выполненности
+    if completed is not None:
+        query = query.filter(Task.completed == completed)
+
+    # 3️⃣ Поиск по названию
+    if search:
+        query = query.filter(Task.description.ilike(f"%{search}%"))
+
+    # 4️⃣ Общее количество (до лимита/offset)
+    total = db.scalar(select(func.count()).select_from(query.subquery()))
+
+    # 5️⃣ Пагинация
+    query = query.offset(skip).limit(limit)
+
+    # 6️⃣ Получаем список задач
     tasks = db.execute(query).scalars().all()
-    return tasks
+
+    tasks_list = list(tasks)
+    return tasks_list, int(total or 0)
 
 
 # Добавить задачу
-def add_task(db: Session, new_description: str, user: User) -> Task:
-    new_task = Task(description=new_description.strip(), user_id=user.id)  # type: ignore
+def add_task(
+    db: Session,
+    new_description: str,
+    user: User,
+) -> Task:
+    new_task = Task(
+        description=new_description.strip(),
+        user_id=user.id,
+    )  # type: ignore
     db.add(new_task)
     db.commit()
     db.refresh(new_task)

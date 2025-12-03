@@ -1,0 +1,24 @@
+# docker-compose.test.yml
+
+services:
+  db_test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_pass
+      POSTGRES_DB: test_db
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "test_user"]
+      interval: 3s
+      retries: 10
+
+  tests:
+    build: .
+    environment:
+      DOCKER_ENV: "true"
+    depends_on:
+      db_test:
+        condition: service_healthy
+    command: poetry run pytest -v

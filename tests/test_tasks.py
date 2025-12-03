@@ -12,10 +12,13 @@ client = TestClient(app)
 def auth_header(client):
     """Создаёт пользователя (если его нет) и возвращает заголовок авторизации."""
 
-    def _auth_header(email: str = "test@example.com", password: str = "password"):
+    def _auth_header(
+        email: str = "test@example.com", password: str = "password", role: str = "user"
+    ):
         # 1️⃣ пробуем зарегистрировать
         resp = client.post(
             "/register",
+            params={"role": role},
             json={"username": email, "password": password},
         )
 
@@ -55,8 +58,10 @@ def create_task(client, auth_header):
     def _create_task(
         description: str = "Test Description",
         email: str = "test@example.com",
+        password: str = "password",
+        role: str = "user",
     ):
-        headers = auth_header(email=email)
+        headers = auth_header(email=email, password=password, role=role)
         response = client.post(
             "/tasks/",
             json={"description": description},
@@ -66,9 +71,107 @@ def create_task(client, auth_header):
         return response.json(), headers
 
     return _create_task
-
     # ---------------------- ТЕСТЫ ----------------------
-    """  Добавить залачу  """
+    """ Получить задачи """
+
+
+#  Пользователь видит только свои задачи
+def test_get_tasks_only_user_tasks(client, db_session, clean_db, create_task):
+    # user A
+    _, headers = create_task(
+        description="A1",
+        email="a@example.com",
+        password="1",
+    )
+    create_task(
+        description="A2",
+        email="a@example.com",
+        password="1",
+    )
+    # user B
+    create_task(
+        description="B1",
+        email="b@example.com",
+        password="1",
+    )
+
+    resp = client.get("/tasks", headers=headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    save_headers = headers
+    get_first_id = data["items"][0]["id"]
+
+    # total = только A1 и A2
+    assert data["total"] == 2
+    assert data["count"] == 2
+    assert {t["description"] for t in data["items"]} == {"A1", "A2"}
+
+    # Админ видит все задачи
+    _, headers = create_task(
+        description="Admin_1",
+        email="admin@example.com",
+        password="1",
+        role="admin",
+    )
+    resp = client.get("/tasks", headers=headers)
+    data = resp.json()
+
+    assert data["total"] == 4
+    assert data["count"] == 4
+
+    # Фильтрация completed
+    task = client.patch(f"/tasks/{get_first_id}/complete", headers=save_headers)
+
+    assert task.status_code == 200
+
+    resp = client.get("/tasks?completed=true", headers=save_headers)
+    data = resp.json()
+
+    assert data["total"] == 1
+    assert data["items"][0]["completed"] is True
+
+    # Поиск по description
+    _, headers = create_task(
+        description="Buy milk",
+        email="s@example.com",
+        password="1",
+    )
+    create_task(
+        description="Buy bread",
+        email="s@example.com",
+        password="1",
+    )
+    create_task(
+        description="Sleep",
+        email="s@example.com",
+        password="1",
+    )
+
+    resp = client.get("/tasks?search=buy", headers=headers)
+    data = resp.json()
+
+    assert data["total"] == 2
+    assert {t["description"] for t in data["items"]} == {"Buy milk", "Buy bread"}
+
+    # Пагинация skip+limit и корректное total
+    p = 1
+    _, headers = create_task(
+        description=f"T{p}",
+        email="p@example.com",
+        password="1",
+    )
+    for i in range(19):
+        n = i + p
+        client.post("/tasks/", json={"description": f"T{n}"}, headers=headers)
+    resp = client.get("/tasks?skip=5&limit=5", headers=headers)
+    data = resp.json()
+
+    assert data["total"] == 20  # total без учета offset/limit
+    assert data["count"] == 5  # ровно limit элементов
+    assert data["items"][0]["description"] == "T5"
+
+    """  Добавить задачу  """
 
 
 def test_create_and_list_tasks(client, create_task, auth_header):
@@ -84,7 +187,7 @@ def test_create_and_list_tasks(client, create_task, auth_header):
     task, headers = create_task("Hello world")
     resp = client.get("/tasks/", headers=headers)
     assert resp.status_code == 200
-    data = resp.json()
+    data = resp.json()["items"]
     assert len(data) == 1
     assert data[0]["description"] == "Hello world"
 
@@ -135,13 +238,20 @@ def test_update_task_description(client, create_task):
     task, headers = create_task("Task")
     resp = client.patch(
         f"/tasks/{task['id']}/description",
+        json={"description": "   "},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+    resp = client.patch(
+        f"/tasks/{task['id']}/description",
         json={"description": "New task"},
         headers=headers,
     )
     assert resp.status_code == 200
     assert resp.json()["description"] == "New task"
 
-    """ Удолить задачу """
+    """ Удалить задачу """
 
 
 def test_delete_task(client, create_task):
@@ -150,9 +260,10 @@ def test_delete_task(client, create_task):
     assert resp.status_code == 204
     # Проверим, что задача удалена
     resp = client.get("/tasks/", headers=headers)
-    assert all(t["id"] != task["id"] for t in resp.json())
+    print(resp)
+    assert all(t["id"] != task["id"] for t in resp.json()["items"])
 
-    """ Отметить как выполненую """
+    """ Отметить как выполненную """
 
 
 def test_complete_task(client, create_task):
@@ -161,28 +272,29 @@ def test_complete_task(client, create_task):
     assert resp.status_code == 200
     assert resp.json()["completed"] is True
 
-    """ Поиск по клучу """
+    """ Поиск по ключу """
 
 
-def test_search_task(client, create_task, auth_header):
+def test_search_task(client, create_task, auth_header, clean_db):
     # БД пустая
     headers = auth_header()
     resp = client.get("/tasks/search?keyword=world", headers=headers)
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Таблица задач пуста"
-    # Поиск удачный
 
+    # Поиск удачный
     create_task("Hello world")
     _, headers = create_task()
     # Поиск не удачный
     resp = client.get("/tasks/search?keyword=My task", headers=headers)
-    resp.status_code == 404
-    resp.json()["detail"] == "Задачи с ключом My task не найдены"
-    # # Поиск с пустым данными
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Задачи с ключом 'My task' не найдены"
 
+    # # Поиск с пустым данными
     resp = client.get("/tasks/search", headers=headers)
     assert resp.status_code == 400
     assert resp.json()["detail"] == "Ключевое слово не может быть пустым"
+
     # Поиск удачный
     resp = client.get("/tasks/search?keyword=world", headers=headers)
     assert resp.status_code == 200

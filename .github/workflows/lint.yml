@@ -17,12 +17,24 @@ jobs:
           - 5432:5432
 
     env:
+      ENV_FILE_TEST: .env.test.local
       DATABASE_URL: postgresql+psycopg2://test_user:test_pass@localhost:5432/test_db
       SECRET_KEY: testsecret
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Install dependencies for Postgres/psycopg2
+        run: sudo apt-get update && sudo apt-get install -y libpq-dev
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in {1..10}; do
+            pg_isready -h localhost -p 5432 && break
+            echo "Waiting for postgres..."
+            sleep 2
+          done
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -37,29 +49,25 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
-      # Проверка форматирования
       - name: Run Black
         run: poetry run black . --check
 
-      # Проверка импортов
       - name: Run Isort
         run: poetry run isort . --check
 
-      # Линтинг и статический анализ (замена Flake8)
       - name: Run Ruff
         run: poetry run ruff check .
 
-      # Проверка типов
       - name: Run MyPy
         run: poetry run mypy app
 
-      # Тесты с покрытием
       - name: Run Pytest with Coverage
-        # run: poetry run pytest --cov=app --cov-report=term-missing
         run: poetry run pytest --cov=app --cov-report=html
 
-      - name: Сохранить отчет покрытия как артефакт
+      - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: htmlcov
+
+

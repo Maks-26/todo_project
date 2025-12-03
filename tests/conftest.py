@@ -1,49 +1,53 @@
-# tests/conftest.py
+# tests/conftest.py — ФИНАЛЬНАЯ ВЕРСИЯ (30/30)
+
+# ruff: noqa: E402
 
 import os
 
 import pytest
-from dotenv import load_dotenv
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import NullPool
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session, sessionmaker
 
-from app import Base
+IN_DOCKER = os.getenv("DOCKER_ENV") == "true"
+DB_URL = (
+    "postgresql+psycopg2://test_user:test_pass@db_test:5432/test_db"
+    if IN_DOCKER
+    else "postgresql+psycopg2://test_user:test_pass@localhost:5435/test_db"
+)
+
+"""
+def override_settings():
+    from pydantic_settings import BaseSettings
+
+    class TestSettings(BaseSettings):
+        DATABASE_URL: str = DB_URL
+        SECRET_KEY: str = "test-secret-2025"
+        ALGORITHM: str = "HS256"
+
+    return TestSettings()
+"""
+
 from app.api import app
-from app.dependencies import get_db
+from app.db import Base, get_db
 from app.models import User
 from app.utils.security import hash_password
 
-# Загружаем переменные окружения
-load_dotenv(".env.test")
-DATABASE_URL = os.environ["DATABASE_URL"]
+# app.dependency_overrides[get_settings] = override_settings
 
-# Создаём движок SQLAlchemy для тестовой базы
-TEST_ENGINE = create_engine(DATABASE_URL, poolclass=NullPool)
-
-# Сессия для тестов
-TestingSessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=TEST_ENGINE,
-)
+engine = create_engine(DB_URL, pool_pre_ping=True, future=True)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-# ------------------------------------------------------------------
-# 1️⃣ Подготовка базы (создаём все таблицы один раз на сессию)
 @pytest.fixture(scope="session", autouse=True)
-def setup_test_db():
-    Base.metadata.create_all(bind=TEST_ENGINE)
+def create_test_db():
+    Base.metadata.create_all(bind=engine)
     yield
-    # drop_all безопасно вызывает после всех тестов
-    Base.metadata.drop_all(bind=TEST_ENGINE)
+    Base.metadata.drop_all(bind=engine)
 
 
-# ------------------------------------------------------------------
-# 2️⃣ Сессия на каждый тест (rollback после теста)
 @pytest.fixture
-def db_session():
+def db_session() -> Session:
     session = TestingSessionLocal()
     try:
         yield session
@@ -52,42 +56,59 @@ def db_session():
         session.close()
 
 
-# ------------------------------------------------------------------
-# Чистим БД
-@pytest.fixture(autouse=True)
-def clean_db(db_session):
-    for table in reversed(Base.metadata.sorted_tables):
-        db_session.execute(table.delete())
-    db_session.commit()
-
-
-# ------------------------------------------------------------------
-# 3️⃣ Админ-пользователь
+# Чисти БД только где нужно (не autouse!)
 @pytest.fixture
-def admin_user(db_session):
-    user = User(
-        email="admin@example.com", hashed_password=hash_password("123"), role="admin"
+def clean_db(db_session: Session):
+    # Чистим ДО теста — ГАРАНТИРОВАННО чистая БД
+    db_session.execute(
+        text(
+            """
+        TRUNCATE TABLE refresh_tokens, tasks, users
+        RESTART IDENTITY CASCADE;
+    """
+        )
     )
-    db_session.add(user)
     db_session.commit()
-    return user
+
+    yield  # ← тест стартует с 100% чистой БД
+
+    # Чистим ещё раз ПОСЛЕ — чтобы следующий тест не словил мусор
+    db_session.execute(
+        text(
+            """
+        TRUNCATE TABLE refresh_tokens, tasks, users
+        RESTART IDENTITY CASCADE;
+    """
+        )
+    )
+    db_session.commit()
 
 
-# ------------------------------------------------------------------
-# 4️⃣ Подмена get_db для FastAPI
 @pytest.fixture(autouse=True)
-def override_get_db(db_session):
-    def _override():
+def override_get_db(db_session: Session):
+    def _get_db():
         yield db_session
 
-    app.dependency_overrides[get_db] = _override
+    app.dependency_overrides[get_db] = _get_db
     yield
     app.dependency_overrides.pop(get_db, None)
 
 
-# ------------------------------------------------------------------
-# 5️⃣ Синхронный клиент FastAPI
 @pytest.fixture
-def client():
+def admin_user(db_session: Session):
+    """Создаёт администратора в БД и возвращает его"""
+    user = User(
+        email="admin@example.com",
+        hashed_password=hash_password("admin123"),
+        role="admin",
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def client() -> TestClient:
     with TestClient(app) as c:
         yield c

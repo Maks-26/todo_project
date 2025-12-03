@@ -30,7 +30,7 @@ def test_register_user_default_role(client, db_session: Session):
     assert user.role == "user"
 
 
-def test_register_admin_role(admin_user, db_session: Session):
+def test_register_admin_role(clean_db, admin_user, db_session: Session):
     """
     ✅ Проверка через фикстуру: администратор создан в БД с ролью 'admin'.
     """

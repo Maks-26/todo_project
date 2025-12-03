@@ -1,13 +1,15 @@
 # tests/test_dependencies.py
 
+import uuid
+
 import pytest
 from fastapi import HTTPException
 from jose import jwt
 
 from app.dependencies import get_current_user, get_db, require_admin, require_user
 from app.models import Task, User
+from app.settings import get_settings
 from app.utils.security import hash_password
-from settings import get_settings
 
 settings = get_settings()
 
@@ -52,7 +54,9 @@ def test_require_admin_success_unit(db_session):
     Проверка: пользователь с ролью 'admin' проходит require_admin.
     """
     admin = User(
-        email="admin@example.com", hashed_password=hash_password("123"), role="admin"
+        email=f"user_{uuid.uuid4()}@example.com",
+        hashed_password=hash_password("123"),
+        role="admin",
     )
     db_session.add(admin)
     db_session.commit()
@@ -85,7 +89,9 @@ def test_require_user_success_user_unit(db_session):
     Проверка: пользователь с ролью 'user' успешно проходит require_user.
     """
     u = User(
-        email="user@example.com", hashed_password=hash_password("123"), role="user"
+        email=f"user@{uuid.uuid4()}example.com",
+        hashed_password=hash_password("123"),
+        role="user",
     )
     db_session.add(u)
     db_session.commit()
@@ -98,7 +104,9 @@ def test_require_user_success_admin_unit(db_session):
     Проверка: пользователь с ролью 'admin' также проходит require_user.
     """
     a = User(
-        email="admin@example.com", hashed_password=hash_password("123"), role="admin"
+        email=f"admin@example{uuid.uuid4()}.com",
+        hashed_password=hash_password("123"),
+        role="admin",
     )
     db_session.add(a)
     db_session.commit()

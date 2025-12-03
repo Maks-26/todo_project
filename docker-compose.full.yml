@@ -1,0 +1,32 @@
+# docker-compose.full.yml
+
+services:
+  db_api:
+    image: postgres:16
+    container_name: todo_project-db
+    restart: always
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: todo_project-api
+    depends_on:
+      - db_api
+    env_file:
+      - .env.docker
+    ports:
+      - "8000:8000"
+    command: >
+      poetry run uvicorn app.api:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  db_data:

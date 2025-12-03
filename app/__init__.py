@@ -1,7 +1,7 @@
-from .db import Base, SessionLocal
+from .db import Base
 from .models import Task, User
 
-__all__ = ["Base", "SessionLocal", "Task", "User"]
+__all__ = ["Base", "Task", "User"]
 
 
 menu = (

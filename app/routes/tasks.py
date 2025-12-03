@@ -7,7 +7,13 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, require_user
 from app.models import User
-from app.schemas import TaskCreate, TaskOnlyUpdate, TaskOut, TaskUpdate
+from app.schemas import (
+    PaginatedResponse,
+    TaskCreate,
+    TaskOnlyUpdate,
+    TaskOut,
+    TaskUpdate,
+)
 from app.services import (
     add_task,
     complete_task,
@@ -22,12 +28,24 @@ router = APIRouter()
 
 
 # получить все задачи
-@router.get("/tasks", response_model=List[TaskOut])
+@router.get("/tasks", response_model=PaginatedResponse[TaskOut])
 def get_tasks(
-    db: Session = Depends(get_db), current_user: User = Depends(require_user)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_user),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, le=100),
+    completed: Optional[bool] = None,
+    search: Optional[str] = None,
 ):
-    tasks = list_tasks(db, current_user)
-    return tasks
+    tasks, total = list_tasks(db, current_user, skip, limit, completed, search)
+
+    return {
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "count": len(tasks),
+        "items": tasks,
+    }
 
 
 # добавить задачу

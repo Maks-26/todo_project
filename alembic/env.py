@@ -8,7 +8,7 @@ from alembic import context
 from app.db import Base
 
 # --- наши импорты ---
-from settings import get_settings
+from app.settings import get_settings
 
 # Alembic config
 config = context.config

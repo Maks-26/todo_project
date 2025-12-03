@@ -1,0 +1,18 @@
+# docker-compose.db.yml
+
+services:
+  db_api:
+    image: postgres:16
+    container_name: todo_project-db
+    restart: always
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:

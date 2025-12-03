@@ -1,23 +1,28 @@
-# app/utils/jwt_token.py — создание токена
+# app/utils/jwt_token.py
 
-from datetime import UTC, datetime, timedelta
-from typing import cast
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
 
 from jose import jwt
 
-from settings import get_settings
+from app.settings import get_settings
 
-settings = get_settings()
+UTC = timezone.utc
 
 
-def create_access_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.now(UTC) + timedelta(minutes=30)
-
-    to_encode.update({"exp": expire})
-    return cast(
-        str, jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+def create_access_token(subject: str, expires_minutes: Optional[int] = None) -> str:
+    settings = get_settings()  # ленивый вызов
+    expire = datetime.now(UTC) + timedelta(
+        minutes=expires_minutes or settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
+
+    payload: Dict[str, Any] = {
+        "sub": subject,
+        "exp": expire,
+        "type": "access",
+    }
+
+    return str(jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM))
 
 
 # Старый стиль

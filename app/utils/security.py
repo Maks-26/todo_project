@@ -3,7 +3,6 @@ from typing import cast
 
 from passlib.context import CryptContext
 
-# Контекст для хеширования паролей
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 

@@ -1,27 +1,17 @@
-# app/dependencies.py — токен + доступ к БД + роль:
+# app/dependencies.py
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from app.db import SessionLocal
+from app.db import get_db
 from app.models import User
-from settings import get_settings
+from app.settings import get_settings  # ← оставь импорт функции
 
-settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-# получение текущего пользователя
 def get_current_user(
     token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
 ) -> User:
@@ -32,7 +22,7 @@ def get_current_user(
     )
     try:
         payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            token, get_settings().SECRET_KEY, algorithms=[get_settings().ALGORITHM]
         )
         email: str = payload.get("sub")
         if email is None:
@@ -48,16 +38,11 @@ def get_current_user(
 
 def require_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access forbidden: Admins only",
-        )
+        raise HTTPException(status_code=403, detail="Access forbidden: Admins only")
     return current_user
 
 
 def require_user(current_user: User = Depends(get_current_user)):
     if current_user.role not in ("admin", "user"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden: Users only"
-        )
+        raise HTTPException(status_code=403, detail="Access forbidden: Users only")
     return current_user
