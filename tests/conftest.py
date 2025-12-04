@@ -1,6 +1,4 @@
-# tests/conftest.py — ФИНАЛЬНАЯ ВЕРСИЯ (30/30)
-
-# ruff: noqa: E402
+# tests/conftest.py
 
 import os
 
@@ -9,31 +7,26 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-IN_DOCKER = os.getenv("DOCKER_ENV") == "true"
-DB_URL = (
-    "postgresql+psycopg2://test_user:test_pass@db_test:5432/test_db"
-    if IN_DOCKER
-    else "postgresql+psycopg2://test_user:test_pass@localhost:5435/test_db"
-)
-
-"""
-def override_settings():
-    from pydantic_settings import BaseSettings
-
-    class TestSettings(BaseSettings):
-        DATABASE_URL: str = DB_URL
-        SECRET_KEY: str = "test-secret-2025"
-        ALGORITHM: str = "HS256"
-
-    return TestSettings()
-"""
-
 from app.api import app
 from app.db import Base, get_db
 from app.models import User
 from app.utils.security import hash_password
 
-# app.dependency_overrides[get_settings] = override_settings
+IN_DOCKER = os.getenv("DOCKER_ENV") == "true"
+IN_CI = os.getenv("GITHUB_ACTIONS") == "true"
+
+if IN_DOCKER:
+    # Используем docker-compose.* → имя сервиса
+    DB_URL = "postgresql+psycopg2://test_user:test_pass@db_test:5432/test_db"
+
+elif IN_CI:
+    # GitHub Actions → порт 5432
+    DB_URL = "postgresql+psycopg2://test_user:test_pass@localhost:5432/test_db"
+
+else:
+    # Локальный docker-compose.test.yml → порт 5435
+    DB_URL = "postgresql+psycopg2://test_user:test_pass@localhost:5435/test_db"
+
 
 engine = create_engine(DB_URL, pool_pre_ping=True, future=True)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

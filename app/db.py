@@ -28,7 +28,6 @@ def get_session_local():
     return _SessionLocal
 
 
-# Это то, что ты используешь в dependencies.get_db
 def get_db():
     SessionLocal = get_session_local()
     db = SessionLocal()

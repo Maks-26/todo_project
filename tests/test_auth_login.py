@@ -80,9 +80,6 @@ def test_login_success(client, db_session: Session, clean_db):
     assert resp.status_code == 401
 
 
-# Остальные тесты без изменений
-
-
 def test_login_wrong_password(client, db_session: Session, clean_db):
     user = User(
         email="login_wrong@example.com",
